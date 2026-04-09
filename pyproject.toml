@@ -3,16 +3,16 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcptube"
-version = "0.1.2"
-description = "Convert any YouTube video into an AI-queryable MCP server"
+name = "mcptube-vision"
+version = "0.2.0"
+description = "YouTube video knowledge engine — transcripts, vision, and persistent wiki"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.14"
 authors = [
     { name = "0xchamin", email = "chmk90@gmail.com" },
 ]
-keywords = ["mcp", "youtube", "ai", "fastmcp", "video"]
+keywords = ["mcp", "youtube", "ai", "fastmcp", "video", "wiki", "vision"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3.12",
@@ -26,9 +26,7 @@ dependencies = [
     "yt-dlp>=2025.0.0",
     "typer>=0.9",
     "pydantic-settings>=2.0",
-    "chromadb>=1.5",
     "litellm>=1.50",
-
 ]
 
 [project.optional-dependencies]

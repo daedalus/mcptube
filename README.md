@@ -1,12 +1,42 @@
-# 🎬 mcptube
+# 🎬 mcptube-vision
 
-**Convert any YouTube video into an AI-queryable MCP server.**
+**YouTube video knowledge engine — transcripts, vision, and persistent wiki.**
 
-[![PyPI](https://img.shields.io/pypi/v/mcptube)](https://pypi.org/project/mcptube/)
-[![Python](https://img.shields.io/pypi/pyversions/mcptube)](https://pypi.org/project/mcptube/)
+[![PyPI](https://img.shields.io/pypi/v/mcptube-vision)](https://pypi.org/project/mcptube-vision/)
+[![Python](https://img.shields.io/pypi/pyversions/mcptube-vision)](https://pypi.org/project/mcptube-vision/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-mcptube extracts metadata, transcripts, and frames from YouTube videos, indexes them for semantic search, and exposes everything as both a CLI tool and an MCP (Model Context Protocol) server. Ask questions, generate reports, discover new videos, and synthesize themes — all from your terminal or AI assistant.
+mcptube-vision transforms YouTube videos into a persistent, structured knowledge base using both transcripts and visual frame analysis. Built on the [Karpathy LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern: knowledge compounds with every video you add.
+
+> **Evolved from [mcptube](https://pypi.org/project/mcptube/) v0.1** — mcptube-vision replaces semantic chunk search with a persistent wiki that gets smarter with every video ingested.
+
+---
+
+## 🧠 How It Works
+
+Traditional video tools re-discover knowledge from scratch on every query. mcptube-vision is different:
+
+```
+           mcptube v0.1                    mcptube-vision
+    ┌─────────────────────┐         ┌─────────────────────────┐
+    │ Query → vector search│         │ Video ingested → LLM     │
+    │ → raw chunks → LLM  │         │ extracts knowledge →     │
+    │ → answer (from scratch│        │ wiki pages created →     │
+    │   every time)        │         │ cross-references built   │
+    └─────────────────────┘         │                         │
+                                    │ Query → FTS5 + agent    │
+                                    │ → reasons over compiled  │
+                                    │   knowledge → answer     │
+                                    └─────────────────────────┘
+```
+
+| | v0.1 (Video Search Engine) | vision (Video Knowledge Engine) |
+|---|---|---|
+| **On ingest** | Chunk transcript, embed in vector DB | LLM watches + reads, writes wiki pages |
+| **On query** | Find similar chunks | Agent reasons over compiled knowledge |
+| **Frames** | Timestamp or keyword extraction | Scene-change detection + vision model |
+| **Cross-video** | Re-search all chunks each time | Connections already in the wiki |
+| **Over time** | Library of isolated videos | Compounding knowledge base |
 
 ---
 
@@ -15,21 +45,20 @@ mcptube extracts metadata, transcripts, and frames from YouTube videos, indexes 
 | Feature | CLI | MCP Server |
 |---------|:---:|:----------:|
 | Add/remove YouTube videos | ✅ | ✅ |
-| List library with tags | ✅ | ✅ |
-| Full video details + transcript | ✅ | ✅ |
-| Semantic search (single/cross-video) | ✅ | ✅ |
-| Frame extraction by timestamp | ✅ | ✅ |
-| Frame extraction by query | ✅ | ✅ |
-| Ask questions about videos | ✅ (BYOK) | ✅ (passthrough) |
-| LLM classification/tagging | ✅ (BYOK) | ✅ (passthrough) |
-| Illustrated reports (single video) | ✅ (BYOK) | ✅ (passthrough) |
-| Cross-video reports | ✅ (BYOK) | ✅ (passthrough) |
+| Wiki knowledge base (auto-built) | ✅ | ✅ |
+| Scene-change frame extraction + vision analysis | ✅ | ✅ |
+| Full-text wiki search (FTS5) | ✅ | ✅ |
+| Agentic Q&A over wiki | ✅ | ✅ |
+| Browse wiki pages (entities, topics, concepts) | ✅ | ✅ |
+| Wiki version history | ✅ | ✅ |
+| Wiki export (markdown, HTML) | ✅ | — |
+| Illustrated reports (single & cross-video) | ✅ (BYOK) | ✅ (passthrough) |
 | YouTube discovery + clustering | ✅ (BYOK) | ✅ |
 | Cross-video synthesis | ✅ (BYOK) | ✅ (passthrough) |
-| Smart video resolver (ID/index/text) | ✅ | — |
+| Text-only processing mode | ✅ | ✅ |
 
 **BYOK** = Bring Your Own Key (Anthropic, OpenAI, or Google)
-**Passthrough** = The MCP client's own LLM does the analysis — zero API key required on the server
+**Passthrough** = The MCP client's own LLM does the analysis
 
 ---
 
@@ -37,26 +66,22 @@ mcptube extracts metadata, transcripts, and frames from YouTube videos, indexes 
 
 ### Prerequisites
 
-- **Python 3.12 or 3.13** (ChromaDB is not yet compatible with Python 3.14)
+- **Python 3.12 or 3.13**
 - **ffmpeg** — required for frame extraction ([install guide](https://ffmpeg.org/download.html))
 
-### Recommended: pipx (CLI + MCP server)
+### Recommended: pipx
 
 ```bash
-pipx install mcptube --python python3.12
+pipx install mcptube-vision --python python3.12
 ```
 
-This installs `mcptube` globally and makes it available to all MCP clients without activating a virtual environment.
-
-### Alternative: pip (virtual environment)
+### Alternative: pip
 
 ```bash
 python3.12 -m venv venv
 source venv/bin/activate
-pip install mcptube
+pip install mcptube-vision
 ```
-
-> ⚠️ **macOS/Homebrew users**: Global `pip install` will fail with "externally-managed-environment". Use `pipx` or a virtual environment instead.
 
 ### Verify installation
 
@@ -69,23 +94,27 @@ mcptube --help
 ## 🚀 Quick Start
 
 ```bash
-# 1. Add a YouTube video
+# 1. Add a video (builds wiki automatically)
 mcptube add "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-# 2. List your library
-mcptube list
+# 2. Add with text-only processing (cheaper, faster)
+mcptube add "https://www.youtube.com/watch?v=abc123" --text-only
 
-# 3. Search the transcript
+# 3. Browse the wiki
+mcptube wiki list
+mcptube wiki show "video-dQw4w9WgXcQ"
+
+# 4. Search the knowledge base
 mcptube search "main topic"
 
-# 4. Extract a frame at 30 seconds
-mcptube frame 1 30
+# 5. Ask a question (agentic retrieval over wiki)
+mcptube ask "What are the key ideas discussed?"
 
-# 5. Ask a question about it
-mcptube ask "What is this video about?" -v 1
+# 6. View the table of contents
+mcptube wiki toc
 ```
 
-> 💡 **Always wrap multi-word arguments in double quotes** — e.g. `mcptube search "neural networks"`, not `mcptube search neural networks`.
+> 💡 **Always wrap multi-word arguments in double quotes.**
 
 ---
 
@@ -95,302 +124,176 @@ mcptube ask "What is this video about?" -v 1
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `mcptube add "<url>"` | Ingest a YouTube video | `mcptube add "https://youtu.be/dQw4w9WgXcQ"` |
+| `mcptube add "<url>"` | Ingest video + build wiki (full analysis) | `mcptube add "https://youtu.be/dQw4w9WgXcQ"` |
+| `mcptube add "<url>" --text-only` | Ingest without vision processing | `mcptube add "https://youtu.be/abc" --text-only` |
 | `mcptube list` | List all videos with tags | `mcptube list` |
-| `mcptube info <query>` | Show full video details | `mcptube info 1` or `mcptube info "dQw4w9WgXcQ"` |
-| `mcptube remove <query>` | Remove a video | `mcptube remove 1` |
+| `mcptube info <query>` | Show full video details | `mcptube info 1` |
+| `mcptube remove <query>` | Remove video + clean wiki references | `mcptube remove 1` |
 
-### Search & Frames
+### Wiki Knowledge Base
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `mcptube search "<query>"` | Semantic search across all videos | `mcptube search "machine learning"` |
-| `mcptube search "<query>" --video <id>` | Search within a specific video | `mcptube search "intro" --video 1` |
+| `mcptube wiki list` | Browse all wiki pages | `mcptube wiki list` |
+| `mcptube wiki list --type entity` | Filter by type | `mcptube wiki list --type concept` |
+| `mcptube wiki show <slug>` | Read a specific wiki page | `mcptube wiki show "entity-openai"` |
+| `mcptube wiki search "<query>"` | Full-text search | `mcptube wiki search "attention"` |
+| `mcptube wiki toc` | Table of contents | `mcptube wiki toc` |
+| `mcptube wiki history <slug>` | Version history | `mcptube wiki history "topic-ml"` |
+| `mcptube wiki export` | Export as markdown or HTML | `mcptube wiki export --format html -o wiki.html` |
+
+### Search & Ask
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `mcptube search "<query>"` | Search wiki via FTS5 | `mcptube search "transformers"` |
+| `mcptube ask "<question>"` | Agentic Q&A over wiki | `mcptube ask "What is self-attention?"` |
+
+### Frames
+
+| Command | Description | Example |
+|---------|-------------|---------|
 | `mcptube frame <video> <timestamp>` | Extract frame at timestamp | `mcptube frame 1 30` |
 | `mcptube frame-query <video> "<query>"` | Extract frame by transcript match | `mcptube frame-query 1 "key moment"` |
-
-### Ask Questions (BYOK)
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `mcptube ask "<question>" -v <video>` | Ask about a single video | `mcptube ask "What are the main points?" -v 1` |
-| `mcptube ask "<question>" -v <id1> -v <id2>` | Ask across multiple videos | `mcptube ask "What do they agree on?" -v 1 -v 2` |
 
 ### Analysis & Reports (BYOK)
 
 | Command | Description | Example |
 |---------|-------------|---------|
 | `mcptube classify <video>` | LLM classification/tagging | `mcptube classify 1` |
-| `mcptube report <video> [--focus] [--format] [-o]` | Single-video illustrated report | `mcptube report 1 --format html -o report.html` |
-| `mcptube report-query "<topic>" [--tag] [--format] [-o]` | Cross-video report | `mcptube report-query "AI trends" --format html -o report.html` |
-| `mcptube discover "<topic>"` | YouTube search + LLM clustering | `mcptube discover "prompt engineering"` |
-| `mcptube synthesize-cmd "<topic>" -v <id1> -v <id2>` | Cross-video synthesis | `mcptube synthesize-cmd "AI" -v abc123 -v xyz789 --format html -o synthesis.html` |
+| `mcptube report <video> [--format html] [-o file]` | Single-video report | `mcptube report 1 -o report.html` |
+| `mcptube report-query "<topic>" [--format html] [-o file]` | Cross-video report | `mcptube report-query "AI" -o report.html` |
+| `mcptube discover "<topic>"` | YouTube search + clustering | `mcptube discover "prompt engineering"` |
+| `mcptube synthesize-cmd "<topic>" -v <id1> -v <id2>` | Cross-video synthesis | `mcptube synthesize-cmd "AI" -v id1 -v id2` |
 
 ### Server
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `mcptube serve` | Start MCP server (Streamable HTTP) | `mcptube serve` |
-| `mcptube serve --stdio` | Start MCP server (stdio transport) | `mcptube serve --stdio` |
-| `mcptube serve --host 0.0.0.0 --port 8080` | Custom host/port | `mcptube serve --host 0.0.0.0 --port 8080` |
+| Command | Description |
+|---------|-------------|
+| `mcptube serve` | Start MCP server (HTTP) |
+| `mcptube serve --stdio` | Start MCP server (stdio) |
 
-### Smart Video Resolver
+---
 
-All commands that accept a `<video>` or `<query>` argument support the smart resolver:
+## 🧩 Wiki Page Types
 
-| Input | Resolution |
-|-------|-----------|
-| `dQw4w9WgXcQ` | Exact YouTube video ID |
-| `1` | Index number from `mcptube list` (1-based) |
-| `"prompting"` | Case-insensitive substring match on title or channel |
+When you ingest a video, mcptube-vision builds four types of wiki pages:
+
+| Page Type | Created From | Update Policy |
+|-----------|-------------|---------------|
+| **Video** | Each ingested video | Write-once (immutable) |
+| **Entity** | People, companies, tools mentioned | Append-only (new references added) |
+| **Topic** | Broad themes (e.g., "Machine Learning") | Synthesis rewritten, per-video contributions immutable |
+| **Concept** | Specific ideas (e.g., "Scaling Laws") | Synthesis rewritten, per-video contributions immutable |
+
+**Principle:** Raw source content (what was said/shown in each video) is never modified. Only synthesis summaries evolve as new videos are added. Version history is maintained for all changes.
+
+---
+
+## 🔍 How Search Works (Hybrid Retrieval)
+
+mcptube-vision uses a two-step hybrid approach:
+
+1. **SQLite FTS5** — keyword search narrows thousands of wiki pages to a handful of candidates (milliseconds, zero LLM cost)
+2. **LLM Agent** — reads candidates + wiki table of contents, reasons about relevance, synthesizes an answer
+
+This gives you the speed of keyword search with the intelligence of an LLM agent.
+
+---
+
+## 👁️ Vision Pipeline
+
+When you ingest a video without `--text-only`, mcptube-vision:
+
+1. Extracts key frames using **ffmpeg scene-change detection** (`select='gt(scene,0.4)'`)
+2. Sends frames to a **vision-capable LLM** (GPT-4o, Claude, Gemini) for description
+3. Combines frame descriptions with transcript in the knowledge extraction pass
+
+This captures visual content (slides, code, diagrams, demos) that transcripts alone miss.
 
 ---
 
 ## 🔌 MCP Server
 
-mcptube exposes **17 MCP tools** that any MCP-compatible AI assistant can use.
+### Configuration (Claude Desktop)
 
-### Transport Modes
-
-| Mode | Command | Use Case |
-|------|---------|----------|
-| **Streamable HTTP** | `mcptube serve` | Claude Code, remote clients |
-| **stdio** | `mcptube serve --stdio` | VS Code Copilot, Claude Desktop, Cursor |
+```json
+{
+    "mcpServers": {
+        "mcptube": {
+            "command": "mcptube",
+            "args": ["serve", "--stdio"]
+        }
+    }
+}
+```
 
 ### MCP Tools
 
-| Tool | Description | API Key Required |
-|------|-------------|:----------------:|
-| `add_video(url)` | Ingest a YouTube video | No |
-| `remove_video(video_id)` | Remove from library | No |
-| `list_videos()` | List all videos | No |
-| `get_info(video_id)` | Full details + transcript | No |
-| `search(query, video_id?, limit)` | Semantic search (single video) | No |
-| `search_library(query, tags?, limit)` | Semantic search (all videos) | No |
-| `get_frame(video_id, timestamp)` | Extract frame (returns image) | No |
-| `get_frame_by_query(video_id, query)` | Search + extract frame | No |
-| `get_frame_data(video_id, timestamp)` | Frame as base64 | No |
-| `ask_video(video_id, question)` | Ask about a video (passthrough) | No |
-| `ask_videos(video_ids, question)` | Ask across videos (passthrough) | No |
-| `classify_video(video_id)` | Get metadata for classification | No |
-| `save_tags(video_id, tags)` | Save classification tags | No |
-| `generate_report(video_id, query?)` | Report data (passthrough) | No |
-| `generate_report_from_query(query, tags?)` | Cross-video report data | No |
-| `discover_videos(topic)` | YouTube search results | No |
-| `synthesize(video_ids, topic)` | Cross-video synthesis data | No |
-
-> **Passthrough tools** return raw data (transcripts, metadata) for the connected AI to analyze. This means zero API key cost on the server — the client's own LLM does the work.
-
----
-
-## 🖥️ MCP Client Setup
-
-### Claude Code (Streamable HTTP)
-
-1. Start the mcptube server:
-```bash
-mcptube serve
-```
-
-2. In a separate terminal, add the MCP server to Claude Code:
-```bash
-claude mcp add --transport http mcptube http://127.0.0.1:9093/mcp
-```
-
-3. Start using it:
-```
-> Use mcptube to add this video: https://www.youtube.com/watch?v=dQw4w9WgXcQ
-> Search mcptube for "main topic"
-> Generate a report for the first video
-```
-
-> 💡 Claude Code has terminal access, so it can also run CLI commands directly for better report quality.
-
-### VS Code Copilot (stdio)
-
-1. Open MCP configuration (Cmd+Shift+P → "MCP: Open User Configuration") or create `.vscode/mcp.json` in your workspace:
-
-```json
-{
-  "servers": {
-    "mcptube": {
-      "command": "mcptube",
-      "args": ["serve", "--stdio"]
-    }
-  }
-}
-```
-
-2. Click the **Start** button next to the server entry.
-
-3. Open Copilot Chat in **Agent Mode** and start using mcptube tools.
-
-> ⚠️ If you installed mcptube in a virtual environment (not via `pipx`), you'll need the full path to the executable. Find it with `which mcptube`.
-
-### Claude Desktop (stdio)
-
-1. Open the config file:
-```bash
-open ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-2. Add the mcptube server:
-```json
-{
-  "mcpServers": {
-    "mcptube": {
-      "command": "/Users/<your-username>/.local/bin/mcptube",
-      "args": ["serve", "--stdio"]
-    }
-  }
-}
-```
-
-> 💡 Use the full path to `mcptube` (find it with `which mcptube`). If you used `pipx`, it's typically at `~/.local/bin/mcptube`.
-
-3. Restart Claude Desktop. You should see a tools icon (🔨) in the chat input.
-
-### Cursor (stdio)
-
-1. Open Cursor Settings → MCP Servers, or edit `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "mcptube": {
-      "command": "mcptube",
-      "args": ["serve", "--stdio"]
-    }
-  }
-}
-```
-
-2. Restart Cursor and use mcptube tools in Agent mode.
+| Tool | Description |
+|------|-------------|
+| `add_video` | Ingest video + build wiki |
+| `list_videos` | List library |
+| `remove_video` | Remove video + clean wiki |
+| `wiki_list` | Browse wiki pages |
+| `wiki_show` | Read a wiki page |
+| `wiki_search` | Full-text search |
+| `wiki_toc` | Table of contents |
+| `wiki_ask` | Agentic Q&A |
+| `wiki_history` | Version history |
+| `get_frame` | Extract frame (inline image) |
+| `get_frame_by_query` | Frame by transcript match |
+| `classify_video` | Get metadata for classification |
+| `generate_report` | Get data for single-video report |
+| `generate_report_from_query` | Get data for cross-video report |
+| `synthesize` | Get data for theme synthesis |
+| `discover_videos` | Search YouTube |
+| `ask_video` | Single-video Q&A data |
+| `ask_videos` | Multi-video Q&A data |
 
 ---
 
-## 🔑 API Keys (BYOK)
+## ⚙️ Configuration
 
-Some CLI features require an LLM API key. Set one of:
+All settings can be overridden via environment variables prefixed with `MCPTUBE_`:
+
+| Setting | Default | Env Var |
+|---------|---------|---------|
+| Data directory | `~/.mcptube` | `MCPTUBE_DATA_DIR` |
+| Server host | `127.0.0.1` | `MCPTUBE_HOST` |
+| Server port | `9093` | `MCPTUBE_PORT` |
+| Default LLM model | `gpt-4o` | `MCPTUBE_DEFAULT_MODEL` |
+
+### BYOK API Keys
+
+Set one or more to enable LLM features:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-# or
-export OPENAI_API_KEY=sk-...
-# or
-export GOOGLE_API_KEY=AI...
+export ANTHROPIC_API_KEY="sk-ant-..."
+export OPENAI_API_KEY="sk-..."
+export GOOGLE_API_KEY="AI..."
 ```
 
-### What requires a key?
-
-| Feature | CLI | MCP |
-|---------|-----|-----|
-| Add video | No (auto-classifies if key set) | No |
-| Search / Frames | No | No |
-| Ask questions | ✅ Key required | No (passthrough) |
-| Classify | ✅ Key required | No (passthrough) |
-| Reports | ✅ Key required | No (passthrough) |
-| Discover | ✅ Key required | No (via yt-dlp) |
-| Synthesize | ✅ Key required | No (passthrough) |
-
-> **MCP passthrough** = The connected AI assistant (Claude, Copilot, etc.) analyzes the data using its own model. No API key needed on the mcptube server.
+Auto-detection priority: Anthropic → OpenAI → Google.
 
 ---
 
-## ⚖️ CLI (BYOK) vs MCP: When to Use Which
-
-| | CLI with BYOK | MCP Passthrough |
-|---|---|---|
-| **Speed** | Faster — direct API call | Slower — client processes raw data |
-| **Accuracy** | More deterministic — fine-tuned prompts per task | Depends on client LLM interpretation |
-| **Frame selection** | Guided by specialized prompts | Client may hallucinate timestamps |
-| **Context limits** | No limit (streams to LLM API) | May exceed client context window on long videos |
-| **Cost** | Uses your API key | Zero cost — uses client's own model |
-| **Output** | Markdown or HTML files | Inline in chat |
-
-**Recommendation**: Use CLI commands for reports, synthesis, and discovery. Use MCP tools for quick queries, search, and frame extraction.
-
----
-
-## 🔄 Workflows
-
-### Discovery → Add → Synthesize
-
-```bash
-# 1. Scout YouTube for relevant videos
-mcptube discover "transformer architecture"
-
-# 2. Add interesting videos to your library
-mcptube add "https://www.youtube.com/watch?v=..."
-mcptube add "https://www.youtube.com/watch?v=..."
-
-# 3. Synthesize themes across them
-mcptube synthesize-cmd "attention mechanisms" -v <id1> -v <id2> --format html -o synthesis.html
-```
-
-> 📌 `discover` results are NOT in your library. You must `add` them before you can search, ask, or synthesize.
-
-### Ask → Deep Dive → Report
-
-```bash
-# 1. Ask a quick question
-mcptube ask "What are the main arguments?" -v 1
-
-# 2. Search for specific moments
-mcptube search "key conclusion" --video 1
-
-# 3. Extract a frame at that moment
-mcptube frame 1 245
-
-# 4. Generate a full illustrated report
-mcptube report 1 --format html -o report.html
-```
-
----
-
-## ⚙️ Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCPTUBE_DATA_DIR` | `~/.mcptube` | Root directory for all data (DB, frames, ChromaDB) |
-| `MCPTUBE_FRAMES_DIR` | `<data_dir>/frames` | Directory for cached extracted frames |
-| `MCPTUBE_HOST` | `127.0.0.1` | Server bind host |
-| `MCPTUBE_PORT` | `9093` | Server bind port |
-| `ANTHROPIC_API_KEY` | — | Anthropic API key (for CLI BYOK features) |
-| `OPENAI_API_KEY` | — | OpenAI API key (for CLI BYOK features) |
-| `GOOGLE_API_KEY` | — | Google API key (for CLI BYOK features) |
-
----
-
-## 🏗️ Architecture
+## 📁 Data Layout
 
 ```
-CLI (Typer)  ←──────┐
-                     ├── Service Layer (McpTubeService)
-MCP Server (FastMCP) ←─┘        │
-                           ┌────┴────┐
-                     Repository    VectorStore
-                     (SQLite)      (ChromaDB)
-                           │
-                     Ingestion Layer
-                     ├── YouTubeExtractor (yt-dlp)
-                     ├── FrameExtractor (yt-dlp + ffmpeg)
-                     ├── LLMClient (LiteLLM — CLI only)
-                     ├── ReportBuilder (CLI only)
-                     └── VideoDiscovery (CLI only)
+~/.mcptube/
+├── mcptube.db          # Video metadata (SQLite)
+├── wiki.db             # FTS5 search index (SQLite)
+├── wiki/
+│   ├── video/          # Video pages (JSON)
+│   ├── entity/         # Entity pages (JSON)
+│   ├── topic/          # Topic pages (JSON)
+│   ├── concept/        # Concept pages (JSON)
+│   └── _history/       # Version history
+└── frames/
+    ├── <id>_<ts>.jpg   # Single extracted frames
+    └── <id>_scenes/    # Scene-change frames + metadata
 ```
-
----
-
-## ⚠️ Known Issues & Limitations
-
-- **Frame storage**: Frames are cached in `~/.mcptube/frames` (hidden directory). Override with `MCPTUBE_FRAMES_DIR`.
-- **Python 3.14**: ChromaDB is not yet compatible with Python 3.14. Use Python 3.12 or 3.13.
-- **Long transcripts**: Very long videos may exceed MCP client context limits in passthrough mode. CLI BYOK is recommended for long-form content.
-- **Multi-video frame accuracy**: Cross-video reports may occasionally select frames from the wrong video. CLI reports use stricter prompts for better accuracy.
-- **Claude Desktop**: Report generation may fail on context-heavy operations. Use shorter videos or CLI for reports.
-- **`get_frame_data`**: Returns base64-encoded frames that can exceed client token limits (50K+ characters). Prefer `get_frame` for inline display.
-- **Concurrent access**: Running CLI and MCP server simultaneously may cause SQLite conflicts.
 
 ---
 
@@ -399,16 +302,27 @@ MCP Server (FastMCP) ←─┘        │
 ```bash
 git clone https://github.com/0xchamin/mcptube.git
 cd mcptube
+git checkout vision
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -e ".[dev]"
-pytest -v
+pytest
 ```
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Wiki knowledge engine (entities, topics, concepts)
+- [x] Scene-change frame extraction + vision analysis
+- [x] Hybrid retrieval (FTS5 + agentic)
+- [x] CLI + MCP server
+- [ ] Playlist/series support
+- [ ] Web app with early access sign-up
+- [ ] Token-based payment integration
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-Built with [FastMCP](https://gofastmcp.com) · [yt-dlp](https://github.com/yt-dlp/yt-dlp) · [ChromaDB](https://www.trychroma.com) · [LiteLLM](https://github.com/BerriAI/litellm)
+MIT — see [LICENSE](LICENSE) for details.

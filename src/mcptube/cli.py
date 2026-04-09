@@ -6,6 +6,7 @@ from pathlib import Path
 from mcptube.config import settings
 from mcptube.ingestion.frames import FrameExtractionError
 from mcptube.ingestion.youtube import ExtractionError
+from mcptube.llm import LLMClient
 from mcptube.service import (
     AmbiguousVideoError,
     McpTubeService,
@@ -13,23 +14,35 @@ from mcptube.service import (
     VideoNotFoundError,
 )
 from mcptube.storage.sqlite import SQLiteVideoRepository
-from mcptube.storage.vectorstore import ChromaVectorStore
-from mcptube.llm import LLMClient, LLMError
+from mcptube.wiki.engine import WikiEngine
+from mcptube.wiki.models import WikiPageType
+from mcptube.wiki.storage import FileWikiRepository
 
 
 app = typer.Typer(
     name="mcptube",
-    help="Convert any YouTube video into an AI-queryable MCP server.",
+    help="Convert any YouTube video into an AI-queryable knowledge base.",
     no_args_is_help=True,
 )
+
+wiki_app = typer.Typer(
+    name="wiki",
+    help="Browse and search the wiki knowledge base.",
+    no_args_is_help=True,
+)
+app.add_typer(wiki_app, name="wiki")
 
 
 def _get_service() -> McpTubeService:
     """Create a service instance with default dependencies."""
     settings.ensure_dirs()
+    llm = LLMClient()
+    wiki_repo = FileWikiRepository()
+    wiki_engine = WikiEngine(repo=wiki_repo, llm=llm)
     return McpTubeService(
         repository=SQLiteVideoRepository(),
-        vectorstore=ChromaVectorStore(),
+        wiki_engine=wiki_engine,
+        llm_client=llm,
     )
 
 
@@ -45,12 +58,18 @@ def _resolve_or_exit(svc: McpTubeService, query: str):
         raise typer.Exit(code=1)
 
 
+# --- Library Management ---
+
+
 @app.command()
-def add(url: str = typer.Argument(..., help="YouTube video URL to ingest.")) -> None:
-    """Ingest a YouTube video into the mcptube library."""
+def add(
+    url: str = typer.Argument(..., help="YouTube video URL to ingest."),
+    text_only: bool = typer.Option(False, "--text-only", help="Skip vision frame analysis."),
+) -> None:
+    """Ingest a YouTube video into the library and build wiki pages."""
     svc = _get_service()
     try:
-        video = svc.add_video(url)
+        video = svc.add_video(url, text_only=text_only)
         typer.echo(f"✅ Added: {video.title}")
         typer.echo(f"   ID:       {video.video_id}")
         typer.echo(f"   Channel:  {video.channel}")
@@ -58,6 +77,8 @@ def add(url: str = typer.Argument(..., help="YouTube video URL to ingest.")) -> 
         typer.echo(f"   Segments: {len(video.transcript)}")
         if video.tags:
             typer.echo(f"   Tags:     {', '.join(video.tags)}")
+        tier = "text-only" if text_only else "full analysis"
+        typer.echo(f"   Wiki:     ✅ (processed: {tier})")
     except VideoAlreadyExistsError as e:
         typer.echo(f"⚠️  {e}", err=True)
         raise typer.Exit(code=1)
@@ -68,7 +89,7 @@ def add(url: str = typer.Argument(..., help="YouTube video URL to ingest.")) -> 
 
 @app.command(name="list")
 def list_videos() -> None:
-    """List all videos in the mcptube library."""
+    """List all videos in the library."""
     svc = _get_service()
     videos = svc.list_videos()
     if not videos:
@@ -101,35 +122,48 @@ def info(query: str = typer.Argument(..., help="Video ID, index number, or searc
 
 @app.command()
 def remove(query: str = typer.Argument(..., help="Video ID, index number, or search text.")) -> None:
-    """Remove a video from the mcptube library."""
+    """Remove a video from the library and wiki."""
     svc = _get_service()
     video = _resolve_or_exit(svc, query)
     svc.remove_video(video.video_id)
     typer.echo(f"🗑️  Removed: {video.title} ({video.video_id})")
 
 
+# --- Search ---
+
+
 @app.command()
 def search(
     query: str = typer.Argument(..., help="Natural language search query."),
-    video: str | None = typer.Option(None, "--video", "-v", help="Scope to a specific video (ID, index, or text)."),
     limit: int = typer.Option(10, "--limit", "-n", help="Maximum results."),
 ) -> None:
-    """Semantic search across video transcripts."""
+    """Search the wiki knowledge base."""
     svc = _get_service()
-
-    video_id = None
-    if video:
-        resolved = _resolve_or_exit(svc, video)
-        video_id = resolved.video_id
-
-    results = svc.search(query, video_id=video_id, limit=limit)
+    results = svc.wiki_search(query, limit=limit)
     if not results:
         typer.echo("No results found.")
         return
+    for i, page in enumerate(results, 1):
+        tags = f" [{', '.join(page.tags)}]" if page.tags else ""
+        typer.echo(f"  {i}. [{page.page_type.value}] {page.title} ({page.slug}){tags}")
 
-    for i, r in enumerate(results, 1):
-        mins, secs = divmod(int(r.start), 60)
-        typer.echo(f"  {i}. [{mins:02d}:{secs:02d}] ({r.video_id}) {r.text}")
+
+@app.command()
+def ask(
+    question: str = typer.Argument(..., help="Question to ask about your video library."),
+) -> None:
+    """Ask a question — answered via agentic wiki retrieval."""
+    svc = _get_service()
+    try:
+        typer.echo("🤔 Thinking...")
+        answer = svc.wiki_ask(question)
+        typer.echo(f"\n{answer}")
+    except RuntimeError as e:
+        typer.echo(f"❌ {e}", err=True)
+        raise typer.Exit(code=1)
+
+
+# --- Frames ---
 
 
 @app.command()
@@ -166,6 +200,10 @@ def frame_query(
         typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(code=1)
 
+
+# --- Analysis & Reports ---
+
+
 @app.command()
 def classify(
     query: str = typer.Argument(..., help="Video ID, index number, or search text."),
@@ -177,9 +215,10 @@ def classify(
         tags = svc.classify_video(video.video_id)
         typer.echo(f"🏷️  Tags for: {video.title}")
         typer.echo(f"   {', '.join(tags)}")
-    except (LLMError, RuntimeError) as e:
+    except RuntimeError as e:
         typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(code=1)
+
 
 @app.command()
 def report(
@@ -225,6 +264,7 @@ def report_query(
         typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(code=1)
 
+
 @app.command()
 def discover(
     topic: str = typer.Argument(..., help="Topic to search YouTube for."),
@@ -246,24 +286,6 @@ def discover(
                 typer.echo(f"       {v.url}")
             typer.echo("")
     except RuntimeError as e:
-        typer.echo(f"❌ {e}", err=True)
-        raise typer.Exit(code=1)
-    
-@app.command()
-def ask(
-    question: str = typer.Argument(..., help="Question to ask about the video(s)."),
-    videos: list[str] = typer.Option(..., "--video", "-v", help="Video ID, index, or text (repeatable)."),
-) -> None:
-    """Ask a question about one or more videos using LLM."""
-    svc = _get_service()
-    try:
-        resolved_ids = [_resolve_or_exit(svc, v).video_id for v in videos]
-        if len(resolved_ids) == 1:
-            answer = svc.ask_video(resolved_ids[0], question)
-        else:
-            answer = svc.ask_videos(resolved_ids, question)
-        typer.echo(answer)
-    except (RuntimeError, Exception) as e:
         typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(code=1)
 
@@ -289,6 +311,254 @@ def synthesize_cmd(
         typer.echo(f"❌ {e}", err=True)
         raise typer.Exit(code=1)
 
+
+# --- Wiki subcommands ---
+
+
+@wiki_app.command(name="list")
+def wiki_list(
+    page_type: str | None = typer.Option(None, "--type", "-t", help="Filter by type: video, entity, topic, concept."),
+    tag: str | None = typer.Option(None, "--tag", help="Filter by tag."),
+) -> None:
+    """Browse all wiki pages."""
+    svc = _get_service()
+    pt = WikiPageType(page_type) if page_type else None
+    pages = svc.wiki_list(page_type=pt, tag=tag)
+    if not pages:
+        typer.echo("Wiki is empty. Add videos to build the knowledge base.")
+        return
+    for i, page in enumerate(pages, 1):
+        tags = f" [{', '.join(page.tags)}]" if page.tags else ""
+        typer.echo(f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}")
+
+
+@wiki_app.command(name="show")
+def wiki_show(
+    slug: str = typer.Argument(..., help="Wiki page slug to display."),
+) -> None:
+    """Read a specific wiki page."""
+    svc = _get_service()
+    page = svc.wiki_show(slug)
+    if page is None:
+        typer.echo(f"❌ Wiki page not found: {slug}", err=True)
+        raise typer.Exit(code=1)
+
+    from mcptube.wiki.models import ConceptPage, EntityPage, TopicPage, VideoPage
+
+    typer.echo(f"📄 {page.title}")
+    typer.echo(f"   Type: {page.page_type.value}")
+    typer.echo(f"   Slug: {page.slug}")
+    if page.tags:
+        typer.echo(f"   Tags: {', '.join(page.tags)}")
+    if page.related_pages:
+        typer.echo(f"   Related: {', '.join(page.related_pages)}")
+    typer.echo(f"   Updated: {page.updated_at}")
+    typer.echo("")
+
+    if isinstance(page, VideoPage):
+        typer.echo(f"Video ID: {page.video_id}")
+        typer.echo(f"Channel:  {page.channel}")
+        typer.echo(f"Duration: {page.duration:.0f}s")
+        typer.echo(f"Tier:     {page.processing_tier}")
+        typer.echo(f"\nSummary:\n{page.summary}")
+        if page.key_timestamps:
+            typer.echo("\nKey Timestamps:")
+            for ts, desc in page.key_timestamps.items():
+                typer.echo(f"  [{ts}] {desc}")
+        if page.key_frames:
+            typer.echo("\nKey Frames:")
+            for f in page.key_frames:
+                typer.echo(f"  {f.filename} ({f.timestamp:.1f}s): {f.description}")
+
+    elif isinstance(page, EntityPage):
+        typer.echo(f"Category: {page.category.value}")
+        typer.echo(f"\nOverview:\n{page.overview}")
+        if page.video_references:
+            typer.echo("\nVideo References:")
+            for ref in page.video_references:
+                typer.echo(f"\n  From: {ref.title} ({ref.video_id})")
+                typer.echo(f"  {ref.content}")
+
+    elif isinstance(page, (TopicPage, ConceptPage)):
+        typer.echo(f"\nSynthesis:\n{page.synthesis}")
+        if page.contributions:
+            typer.echo("\nPer-Video Contributions:")
+            for c in page.contributions:
+                typer.echo(f"\n  From: {c.title} ({c.video_id})")
+                typer.echo(f"  {c.content}")
+
+
+@wiki_app.command(name="search")
+def wiki_search(
+    query: str = typer.Argument(..., help="Search query."),
+    limit: int = typer.Option(10, "--limit", "-n", help="Maximum results."),
+) -> None:
+    """Search wiki pages via full-text search."""
+    svc = _get_service()
+    results = svc.wiki_search(query, limit=limit)
+    if not results:
+        typer.echo("No results found.")
+        return
+    for i, page in enumerate(results, 1):
+        tags = f" [{', '.join(page.tags)}]" if page.tags else ""
+        typer.echo(f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}")
+
+
+@wiki_app.command(name="toc")
+def wiki_toc() -> None:
+    """Display the wiki table of contents."""
+    svc = _get_service()
+    typer.echo(svc.wiki_toc())
+
+
+@wiki_app.command(name="history")
+def wiki_history(
+    slug: str = typer.Argument(..., help="Wiki page slug."),
+) -> None:
+    """Show version history for a wiki page."""
+    svc = _get_service()
+    versions = svc.wiki_history(slug)
+    if not versions:
+        typer.echo(f"No history found for: {slug}")
+        return
+    typer.echo(f"📜 Version history for: {slug}")
+    for i, v in enumerate(versions, 1):
+        typer.echo(f"  {i}. {v.updated_at}")
+
+
+@wiki_app.command(name="export")
+def wiki_export(
+    fmt: str = typer.Option("markdown", "--format", help="Export format: markdown, html, or pdf."),
+    output: str = typer.Option("wiki_export", "--output", "-o", help="Output file or directory."),
+    slug: str | None = typer.Option(None, "--page", "-p", help="Export a single page by slug."),
+) -> None:
+    """Export wiki pages."""
+    svc = _get_service()
+
+    if slug:
+        page = svc.wiki_show(slug)
+        if page is None:
+            typer.echo(f"❌ Wiki page not found: {slug}", err=True)
+            raise typer.Exit(code=1)
+        pages = [page]
+    else:
+        pages = svc.wiki_list()
+
+    if not pages:
+        typer.echo("Wiki is empty — nothing to export.")
+        return
+
+    if fmt == "markdown":
+        _export_markdown(pages, output)
+    elif fmt == "html":
+        _export_html(pages, output)
+    else:
+        typer.echo(f"❌ Unsupported format: {fmt}. Use markdown or html.", err=True)
+        raise typer.Exit(code=1)
+
+
+def _export_markdown(pages, output_dir: str) -> None:
+    """Export wiki pages as markdown files."""
+    from mcptube.wiki.models import ConceptPage, EntityPage, TopicPage, VideoPage
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    for page in pages:
+        lines = [f"# {page.title}", ""]
+        lines.append(f"**Type:** {page.page_type.value}")
+        if page.tags:
+            lines.append(f"**Tags:** {', '.join(page.tags)}")
+        if page.related_pages:
+            lines.append(f"**Related:** {', '.join(page.related_pages)}")
+        lines.append("")
+
+        if isinstance(page, VideoPage):
+            lines.append(f"**Video:** {page.video_id} by {page.channel}")
+            lines.append(f"**Duration:** {page.duration:.0f}s")
+            lines.append(f"\n## Summary\n{page.summary}")
+            if page.key_timestamps:
+                lines.append("\n## Key Timestamps")
+                for ts, desc in page.key_timestamps.items():
+                    lines.append(f"- [{ts}] {desc}")
+
+        elif isinstance(page, EntityPage):
+            lines.append(f"**Category:** {page.category.value}")
+            lines.append(f"\n## Overview\n{page.overview}")
+            if page.video_references:
+                lines.append("\n## Video References")
+                for ref in page.video_references:
+                    lines.append(f"\n### From: {ref.title} ({ref.video_id})")
+                    lines.append(ref.content)
+
+        elif isinstance(page, (TopicPage, ConceptPage)):
+            lines.append(f"\n## Synthesis\n{page.synthesis}")
+            if page.contributions:
+                lines.append("\n## Per-Video Contributions")
+                for c in page.contributions:
+                    lines.append(f"\n### From: {c.title} ({c.video_id})")
+                    lines.append(c.content)
+
+        filepath = out / f"{page.slug}.md"
+        filepath.write_text("\n".join(lines), encoding="utf-8")
+
+    typer.echo(f"✅ Exported {len(pages)} pages to: {out}/")
+
+
+def _export_html(pages, output_file: str) -> None:
+    """Export wiki pages as a single HTML file."""
+    from mcptube.wiki.models import ConceptPage, EntityPage, TopicPage, VideoPage
+
+    sections = []
+    for page in pages:
+        content = f"<h2>{page.title} <small>({page.page_type.value})</small></h2>"
+        if page.tags:
+            content += f"<p><strong>Tags:</strong> {', '.join(page.tags)}</p>"
+
+        if isinstance(page, VideoPage):
+            content += f"<p><strong>Video:</strong> {page.video_id} by {page.channel}</p>"
+            content += f"<p>{page.summary}</p>"
+
+        elif isinstance(page, EntityPage):
+            content += f"<p><strong>Category:</strong> {page.category.value}</p>"
+            content += f"<p>{page.overview}</p>"
+
+        elif isinstance(page, (TopicPage, ConceptPage)):
+            content += f"<p>{page.synthesis}</p>"
+            for c in page.contributions:
+                content += f"<h3>From: {c.title}</h3><p>{c.content}</p>"
+
+        sections.append(f"<section>{content}</section>")
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>mcptube Wiki Export</title>
+<style>
+    body {{ font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }}
+    h1 {{ border-bottom: 2px solid #333; padding-bottom: 0.5rem; }}
+    h2 {{ color: #2c5282; margin-top: 2rem; }}
+    small {{ color: #888; font-weight: normal; }}
+    section {{ border-bottom: 1px solid #eee; padding-bottom: 1rem; }}
+</style>
+</head>
+<body>
+<h1>mcptube Wiki</h1>
+{"".join(sections)}
+</body>
+</html>"""
+
+    out = Path(output_file)
+    if not out.suffix:
+        out = out.with_suffix(".html")
+    out.write_text(html, encoding="utf-8")
+    typer.echo(f"✅ Exported {len(pages)} pages to: {out}")
+
+
+# --- Server ---
+
+
 @app.command()
 def serve(
     stdio: bool = typer.Option(False, "--stdio", help="Use stdio transport instead of HTTP."),
@@ -300,7 +570,7 @@ def serve(
     from mcptube.server import mcp
 
     if stdio:
-        typer.echo("Starting mcptube MCP server (stdio)...", err=True )
+        typer.echo("Starting mcptube MCP server (stdio)...", err=True)
         mcp.run(transport="stdio")
     else:
         typer.echo(f"Starting mcptube MCP server on http://{host}:{port}/mcp")
