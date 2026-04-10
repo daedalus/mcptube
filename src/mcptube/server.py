@@ -216,19 +216,30 @@ def wiki_toc() -> str:
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
-def wiki_ask(question: str) -> str:
+def wiki_ask(question: str) -> dict:
     """Ask a question — answered via agentic wiki retrieval.
 
     Uses hybrid retrieval: FTS5 narrows to candidate pages,
-    then an LLM agent reasons over the candidates + wiki TOC.
+    then returns the context for the MCP client's model to reason over.
+    No API key required — the client model does the reasoning.
 
     Args:
         question: Natural language question about your video library.
     """
-    try:
-        return _get_service().wiki_ask(question)
-    except RuntimeError as e:
-        return f"Error: {e}"
+    svc = _get_service()
+    pages = svc.wiki_search(question, limit=10)
+    toc = svc.wiki_toc()
+    candidates = [_page_detail(svc.wiki_show(p.slug)) for p in pages if svc.wiki_show(p.slug)]
+    return {
+        "question": question,
+        "toc": toc,
+        "candidates": candidates,
+        "instructions": (
+            "Answer the question using ONLY the candidate pages above. "
+            "Cite page slugs as sources. If no relevant pages found, say so."
+        ),
+    }
+
 
 
 @mcp.tool(annotations={"readOnlyHint": True})
