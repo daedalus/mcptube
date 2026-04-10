@@ -417,7 +417,7 @@ class McpTubeService:
                     if r.video_id not in video_ids:
                         video_ids.append(r.video_id)
 
-        from mcptube.wiki.models import VideoPage
+        from mcptube.wiki.models import VideoPage 
 
         # Collect key frames from wiki VideoPages
         wiki_frames = {}
