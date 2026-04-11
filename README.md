@@ -2,8 +2,8 @@
 
 **YouTube video knowledge engine — transcripts, vision, and persistent wiki.**
 
-[![PyPI](https://img.shields.io/pypi/v/mcptube-vision)](https://pypi.org/project/mcptube-vision/)
-[![Python](https://img.shields.io/pypi/pyversions/mcptube-vision)](https://pypi.org/project/mcptube-vision/)
+[![PyPI](https://img.shields.io/pypi/v/mcptube)](https://pypi.org/project/mcptube/)
+[![Python](https://img.shields.io/pypi/pyversions/mcptube)](https://pypi.org/project/mcptube/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 mcptube-vision transforms YouTube videos into a persistent, structured knowledge base using both transcripts and visual frame analysis. Built on the [Karpathy LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern: knowledge compounds with every video you add.
