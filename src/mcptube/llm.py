@@ -29,6 +29,7 @@ class LLMClient:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
+        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
     }
 
     def __init__(self, model: str | None = None) -> None:
@@ -70,12 +71,12 @@ class LLMClient:
             f"Title: {title}\n"
             f"Channel: {channel}\n"
             f"Description: {description[:500]}\n\n"
-            "Return ONLY a JSON array of strings, e.g. [\"AI\", \"LLM\", \"Tutorial\"]. "
+            'Return ONLY a JSON array of strings, e.g. ["AI", "LLM", "Tutorial"]. '
             "No explanation, no markdown."
         )
         response = self._complete(prompt)
         return self._parse_tags(response)
-    
+
     def answer_question(self, question: str, transcripts: list[dict]) -> str:
         """Answer a question based on video transcript(s).
 
@@ -104,13 +105,11 @@ class LLMClient:
         )
         return self._complete(prompt)
 
-
     def _complete(self, prompt: str, max_tokens: int = 4096) -> str:
         """Send a completion request to the configured LLM."""
         if not self.available:
             raise LLMError(
-                "No LLM API key found. Set one of: "
-                + ", ".join(self._KEY_TO_MODEL.keys())
+                "No LLM API key found. Set one of: " + ", ".join(self._KEY_TO_MODEL.keys())
             )
         try:
             response = litellm.completion(

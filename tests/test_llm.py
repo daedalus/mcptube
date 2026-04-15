@@ -25,6 +25,16 @@ class TestDetectModel:
             client = LLMClient()
             assert "gemini" in client.model
 
+    def test_detect_model_openrouter(self):
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "sk-or-test"}, clear=True):
+            client = LLMClient()
+            assert "openrouter" in client.model
+
+    def test_custom_model_override(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "sk-test"}, clear=True):
+            client = LLMClient(model="custom/model")
+            assert client.model == "custom/model"
+
 
 class TestAvailable:
     def test_available_with_key(self):

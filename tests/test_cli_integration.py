@@ -119,3 +119,9 @@ class TestCLI:
         result = runner.invoke(app, [])
         assert result.exit_code == 2
         assert "mcptube" in result.stdout.lower()
+
+    def test_model_option_sets_custom_model(self):
+        from mcptube.cli import _custom_model
+
+        result = runner.invoke(app, ["--model", "custom/model", "list"])
+        assert result.exit_code == 0
