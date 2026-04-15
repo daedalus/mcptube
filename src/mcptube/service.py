@@ -51,7 +51,6 @@ class McpTubeService:
         llm_client: LLMClient | None = None,
         scene_extractor: SceneFrameExtractor | None = None,
         vision_describer: VisionDescriber | None = None,
-
     ) -> None:
         self._repo = repository
         self._extractor = extractor or YouTubeExtractor()
@@ -62,7 +61,6 @@ class McpTubeService:
         self._discovery: VideoDiscovery | None = None
         self._scene_extractor = scene_extractor or SceneFrameExtractor()
         self._vision_describer = vision_describer or VisionDescriber(self._llm)
-
 
         if self._llm.available:
             self._discovery = VideoDiscovery(llm=self._llm)
@@ -96,8 +94,7 @@ class McpTubeService:
 
         if self._repo.exists(video_id):
             raise VideoAlreadyExistsError(
-                f"Video already in library: {video_id}. "
-                "Use remove_video() first to re-ingest."
+                f"Video already in library: {video_id}. Use remove_video() first to re-ingest."
             )
 
         logger.info("Ingesting video: %s", url)
@@ -115,23 +112,28 @@ class McpTubeService:
 
         # Build wiki pages
         # Vision pipeline + wiki ingest
+        frame_stats = {"ffmpeg_extracted": 0, "llm_processed": 0}
         if self._wiki and self._llm and self._llm.available:
             try:
                 frame_descriptions = None
                 if not text_only:
                     try:
                         frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                        frame_stats["ffmpeg_extracted"] = len(frames)
                         frame_descriptions = self._vision_describer.describe_frames(frames)
+                        frame_stats["llm_processed"] = len(frame_descriptions)
                         logger.info("Vision: described %d frames", len(frame_descriptions))
                     except (SceneFrameError, LLMError) as e:
                         logger.warning("Vision pipeline failed, continuing text-only: %s", e)
 
-                stats = self._wiki.ingest_video(video, frame_descriptions=frame_descriptions, text_only=text_only)
+                stats = self._wiki.ingest_video(
+                    video, frame_descriptions=frame_descriptions, text_only=text_only
+                )
                 logger.info("Wiki ingest: %s", stats)
             except LLMError as e:
                 logger.warning("Wiki ingest failed: %s", e)
 
-
+        video.frame_stats = frame_stats
         logger.info("Video added: %s — %s", video.video_id, video.title)
         return video
 
@@ -271,7 +273,9 @@ class McpTubeService:
 
     # --- Search (backward compatible — now uses wiki) ---
 
-    def search(self, query: str, video_id: str | None = None, limit: int = 10) -> list[WikiPageBase]:
+    def search(
+        self, query: str, video_id: str | None = None, limit: int = 10
+    ) -> list[WikiPageBase]:
         """Search across the knowledge base.
 
         Uses wiki FTS5 search. For video-scoped search, falls back
@@ -406,6 +410,7 @@ class McpTubeService:
         video_ids = []
         for page in pages:
             from mcptube.wiki.models import VideoPage
+
             if isinstance(page, VideoPage):
                 video_ids.append(page.video_id)
             elif hasattr(page, "contributions"):
@@ -417,7 +422,7 @@ class McpTubeService:
                     if r.video_id not in video_ids:
                         video_ids.append(r.video_id)
 
-        from mcptube.wiki.models import VideoPage 
+        from mcptube.wiki.models import VideoPage
 
         # Collect key frames from wiki VideoPages
         wiki_frames = {}
@@ -425,7 +430,6 @@ class McpTubeService:
             page = self._wiki.get_page(f"video-{vid}")
             if isinstance(page, VideoPage) and page.key_frames:
                 wiki_frames[vid] = page.key_frames
-
 
         if not video_ids:
             raise VideoNotFoundError(f"No matching content for: {query}")
@@ -486,12 +490,17 @@ class McpTubeService:
             raise RuntimeError("Asking questions requires an LLM. Set an API key.")
         video = self.get_info(video_id)
         transcript_text = self._format_transcript(video)
-        return self._llm.answer_question(question, [{
-            "video_id": video.video_id,
-            "title": video.title,
-            "channel": video.channel,
-            "transcript_text": transcript_text,
-        }])
+        return self._llm.answer_question(
+            question,
+            [
+                {
+                    "video_id": video.video_id,
+                    "title": video.title,
+                    "channel": video.channel,
+                    "transcript_text": transcript_text,
+                }
+            ],
+        )
 
     def ask_videos(self, video_ids: list[str], question: str) -> str:
         """Ask a question across multiple videos.
@@ -505,12 +514,14 @@ class McpTubeService:
         transcripts = []
         for vid in video_ids:
             video = self.get_info(vid)
-            transcripts.append({
-                "video_id": video.video_id,
-                "title": video.title,
-                "channel": video.channel,
-                "transcript_text": self._format_transcript(video),
-            })
+            transcripts.append(
+                {
+                    "video_id": video.video_id,
+                    "title": video.title,
+                    "channel": video.channel,
+                    "transcript_text": self._format_transcript(video),
+                }
+            )
         return self._llm.answer_question(question, transcripts)
 
     # --- Resolution ---
@@ -551,7 +562,7 @@ class McpTubeService:
         if len(matches) > 1:
             raise AmbiguousVideoError(
                 f"Multiple videos match '{query}':\n"
-                + "\n".join(f"  {i+1}. {v.title}" for i, v in enumerate(matches))
+                + "\n".join(f"  {i + 1}. {v.title}" for i, v in enumerate(matches))
             )
 
         raise VideoNotFoundError(f"No video matching: {query}")

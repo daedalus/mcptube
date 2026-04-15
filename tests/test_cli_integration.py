@@ -16,7 +16,6 @@ from mcptube.wiki.storage import FileWikiRepository
 import tempfile, pathlib
 
 
-
 runner = CliRunner()
 
 
@@ -24,20 +23,22 @@ runner = CliRunner()
 def mock_service(sample_video):
     """Patch _get_service to return a service with in-memory backends."""
     repo = SQLiteVideoRepository(":memory:")
-    #store = ChromaVectorStore(":memory:")
+    # store = ChromaVectorStore(":memory:")
 
     from mcptube.ingestion.youtube import YouTubeExtractor
+
     extractor = YouTubeExtractor()
 
     with patch.object(extractor, "extract", return_value=sample_video):
         with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
             from mcptube.llm import LLMClient
+
             with patch("mcptube.llm.litellm.completion") as mock_comp:
-                 
                 SAMPLE_WIKI = '{"video_summary": "A guide to ML.", "key_timestamps": {"00:00": "Intro"}, "entities": [], "topics": [{"name": "Neural Networks", "content": "Intro to NNs.", "timestamps": ["00:00"], "tags": ["AI"]}], "concepts": []}'
                 SAMPLE_CLASSIFY = '["AI", "Tutorial"]'
                 responses = [SAMPLE_CLASSIFY, SAMPLE_WIKI]
                 call_count = {"i": 0}
+
                 def pick_response(*args, **kwargs):
                     idx = min(call_count["i"], len(responses) - 1)
                     call_count["i"] += 1
@@ -45,10 +46,11 @@ def mock_service(sample_video):
                     resp.choices = [MagicMock()]
                     resp.choices[0].message.content = responses[idx]
                     return resp
+
                 mock_comp.side_effect = pick_response
 
-
                 from mcptube.service import McpTubeService
+
                 wiki_dir = pathlib.Path(tempfile.mkdtemp()) / "wiki"
                 wiki_repo = FileWikiRepository(wiki_dir=wiki_dir, db_path=":memory:")
                 wiki_engine = WikiEngine(repo=wiki_repo, llm=LLMClient())
@@ -104,8 +106,16 @@ class TestCLI:
         assert result.exit_code == 0
         assert "neural" in result.stdout.lower()
 
+    def test_add_with_frame_stats(self, mock_service):
+        result = runner.invoke(
+            app, ["--show-frame-stats", "add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
+        )
+        assert result.exit_code == 0
+        assert "Frames:" in result.stdout
+        assert "ffmpeg:" in result.stdout
+        assert "LLM:" in result.stdout
+
     def test_no_args_shows_help(self):
         result = runner.invoke(app, [])
         assert result.exit_code == 2
         assert "mcptube" in result.stdout.lower()
-

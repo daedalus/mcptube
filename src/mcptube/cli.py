@@ -1,5 +1,6 @@
 """CLI interface — thin wrapper over McpTubeService and FastMCP server."""
 
+import logging
 import typer
 from pathlib import Path
 
@@ -31,6 +32,44 @@ wiki_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(wiki_app, name="wiki")
+
+_verbose = False
+_debug = False
+_show_frame_stats = False
+
+
+@app.callback()
+def global_options(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode."),
+    cookies: Path | None = typer.Option(
+        None, "--cookies", "-c", help="Path to cookies file for yt-dlp authentication."
+    ),
+    js_runtimes: str | None = typer.Option(
+        None, "--js-runtimes", help="JavaScript runtime for yt-dlp (e.g., 'node')."
+    ),
+    no_proxy: bool = typer.Option(
+        False, "--no-proxy", help="Ignore proxy environment variables for yt-dlp."
+    ),
+    show_frame_stats: bool = typer.Option(
+        False, "--show-frame-stats", help="Print statistics about frame extraction."
+    ),
+) -> None:
+    global _verbose, _debug, _show_frame_stats
+    _verbose = verbose
+    _debug = debug
+    _show_frame_stats = show_frame_stats
+    if _debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+    elif _verbose:
+        logging.getLogger().setLevel(logging.INFO)
+    if cookies is not None:
+        settings.cookies_file = cookies
+    if js_runtimes is not None:
+        settings.js_runtimes = js_runtimes
+    if no_proxy:
+        settings.no_proxy = True
 
 
 def _get_service() -> McpTubeService:
@@ -79,6 +118,10 @@ def add(
             typer.echo(f"   Tags:     {', '.join(video.tags)}")
         tier = "text-only" if text_only else "full analysis"
         typer.echo(f"   Wiki:     ✅ (processed: {tier})")
+        if _show_frame_stats and video.frame_stats:
+            typer.echo(
+                f"   Frames:   ffmpeg: {video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {video.frame_stats.get('llm_processed', 0)}"
+            )
     except VideoAlreadyExistsError as e:
         typer.echo(f"⚠️  {e}", err=True)
         raise typer.Exit(code=1)
@@ -121,7 +164,9 @@ def info(query: str = typer.Argument(..., help="Video ID, index number, or searc
 
 
 @app.command()
-def remove(query: str = typer.Argument(..., help="Video ID, index number, or search text.")) -> None:
+def remove(
+    query: str = typer.Argument(..., help="Video ID, index number, or search text."),
+) -> None:
     """Remove a video from the library and wiki."""
     svc = _get_service()
     video = _resolve_or_exit(svc, query)
@@ -185,7 +230,9 @@ def frame(
 @app.command()
 def frame_query(
     query: str = typer.Argument(..., help="Video ID, index number, or search text."),
-    search_query: str = typer.Argument(..., help="Natural language description of the moment to capture."),
+    search_query: str = typer.Argument(
+        ..., help="Natural language description of the moment to capture."
+    ),
 ) -> None:
     """Extract a frame by searching the transcript for the best matching moment."""
     svc = _get_service()
@@ -223,7 +270,9 @@ def classify(
 @app.command()
 def report(
     query: str = typer.Argument(..., help="Video ID, index number, or search text."),
-    focus: str | None = typer.Option(None, "--focus", "-f", help="Focus query to guide the report."),
+    focus: str | None = typer.Option(
+        None, "--focus", "-f", help="Focus query to guide the report."
+    ),
     fmt: str = typer.Option("markdown", "--format", help="Output format: markdown or html."),
     output: str | None = typer.Option(None, "--output", "-o", help="Save report to file."),
 ) -> None:
@@ -293,7 +342,9 @@ def discover(
 @app.command()
 def synthesize_cmd(
     topic: str = typer.Argument(..., help="Focus topic for cross-video synthesis."),
-    videos: list[str] = typer.Option(..., "--video", "-v", help="Video IDs to synthesize (repeatable)."),
+    videos: list[str] = typer.Option(
+        ..., "--video", "-v", help="Video IDs to synthesize (repeatable)."
+    ),
     fmt: str = typer.Option("markdown", "--format", help="Output format: markdown or html."),
     output: str | None = typer.Option(None, "--output", "-o", help="Save report to file."),
 ) -> None:
@@ -317,7 +368,9 @@ def synthesize_cmd(
 
 @wiki_app.command(name="list")
 def wiki_list(
-    page_type: str | None = typer.Option(None, "--type", "-t", help="Filter by type: video, entity, topic, concept."),
+    page_type: str | None = typer.Option(
+        None, "--type", "-t", help="Filter by type: video, entity, topic, concept."
+    ),
     tag: str | None = typer.Option(None, "--tag", help="Filter by tag."),
 ) -> None:
     """Browse all wiki pages."""

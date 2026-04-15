@@ -1,6 +1,7 @@
 """Tests for McpTubeService — updated for wiki engine integration."""
 
 import pytest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
 
@@ -17,6 +18,7 @@ from mcptube.wiki.engine import WikiEngine
 from mcptube.wiki.models import (
     ConceptPage,
     EntityPage,
+    FrameDescription,
     TopicPage,
     VideoPage,
     WikiPageType,
@@ -75,19 +77,29 @@ def mock_extractor():
 @pytest.fixture
 def mock_scene_extractor():
     ext = MagicMock()
-    ext.extract_scene_frames.return_value = []
+    ext.extract_scene_frames.return_value = [
+        {"path": "/tmp/frame1.jpg", "timestamp": 10.0, "index": 0},
+        {"path": "/tmp/frame2.jpg", "timestamp": 20.0, "index": 1},
+    ]
     return ext
 
 
 @pytest.fixture
 def mock_vision_describer():
     desc = MagicMock()
-    desc.describe_frames.return_value = []
+    desc.describe_frames.return_value = [
+        FrameDescription(
+            filename="frame1.jpg", timestamp=10.0, description="A slide about testing"
+        ),
+        FrameDescription(filename="frame2.jpg", timestamp=20.0, description="Code example"),
+    ]
     return desc
 
 
 @pytest.fixture
-def service(repo, mock_extractor, wiki_engine, mock_llm, mock_scene_extractor, mock_vision_describer):
+def service(
+    repo, mock_extractor, wiki_engine, mock_llm, mock_scene_extractor, mock_vision_describer
+):
     return McpTubeService(
         repository=repo,
         extractor=mock_extractor,
@@ -148,6 +160,18 @@ class TestAddVideo:
         service.add_video("https://youtube.com/watch?v=test1234567", text_only=False)
         mock_scene_extractor.extract_scene_frames.assert_called_once()
         mock_vision_describer.describe_frames.assert_called_once()
+
+    def test_add_video_frame_stats_populated(
+        self, service, mock_scene_extractor, mock_vision_describer
+    ):
+        video = service.add_video("https://youtube.com/watch?v=test1234567", text_only=False)
+        assert video.frame_stats["ffmpeg_extracted"] == 2
+        assert video.frame_stats["llm_processed"] == 2
+
+    def test_add_video_frame_stats_text_only(self, service, mock_scene_extractor):
+        video = service.add_video("https://youtube.com/watch?v=test1234567", text_only=True)
+        assert video.frame_stats["ffmpeg_extracted"] == 0
+        assert video.frame_stats["llm_processed"] == 0
 
 
 # --- List / Info ---
@@ -288,7 +312,10 @@ class TestAskVideo:
     def test_ask_videos_multiple(self, service, mock_llm, mock_extractor):
         service.add_video("https://youtube.com/watch?v=test1234567")
         mock_extractor.extract.return_value = Video(
-            video_id="test4567890", title="V2", channel="C", duration=60.0,
+            video_id="test4567890",
+            title="V2",
+            channel="C",
+            duration=60.0,
             transcript=[TranscriptSegment(start=0.0, duration=5.0, text="Second video.")],
         )
         mock_extractor.parse_video_id = MagicMock(return_value="test4567890")

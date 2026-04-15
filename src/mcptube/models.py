@@ -39,6 +39,9 @@ class Video(BaseModel):
     transcript: list[TranscriptSegment] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     added_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    frame_stats: dict = Field(
+        default_factory=dict
+    )  # {"ffmpeg_extracted": int, "llm_processed": int}
 
     @computed_field
     @property
