@@ -25,7 +25,10 @@ class FrameCacheDB:
         self.db_path = db_path or settings.data_dir / _FRAME_CACHE_DB
         self._conn = sqlite3.connect(str(self.db_path))
         self._conn.row_factory = sqlite3.Row
+        self._hits = 0
+        self._misses = 0
         self._initialize()
+        logger.info("Frame cache initialized: %s", self.db_path)
 
     def _initialize(self) -> None:
         self._conn.execute("""
@@ -38,6 +41,16 @@ class FrameCacheDB:
             CREATE INDEX IF NOT EXISTS idx_content_hash ON frame_descriptions(content_hash)
         """)
         self._conn.commit()
+
+    @property
+    def stats(self) -> dict:
+        """Return cache hit/miss statistics."""
+        return {"hits": self._hits, "misses": self._misses}
+
+    def reset_stats(self) -> None:
+        """Reset hit/miss counters."""
+        self._hits = 0
+        self._misses = 0
 
     def compute_hash(self, image_path: Path) -> str:
         """Compute SHA256 hash of image file content."""
@@ -53,7 +66,13 @@ class FrameCacheDB:
             (content_hash,),
         )
         row = cursor.fetchone()
-        return row["description"] if row else None
+        if row:
+            self._hits += 1
+            logger.debug("Frame cache hit: %s -> %s", image_path.name, content_hash[:16])
+            return row["description"]
+        self._misses += 1
+        logger.debug("Frame cache miss: %s", image_path.name)
+        return None
 
     def put(self, image_path: Path, description: str) -> None:
         """Store image hash → description mapping."""
@@ -64,8 +83,9 @@ class FrameCacheDB:
                 (content_hash, description),
             )
             self._conn.commit()
+            logger.debug("Frame cached: %s -> %s", image_path.name, content_hash[:16])
         except sqlite3.IntegrityError:
-            pass
+            logger.debug("Frame already cached: %s", image_path.name)
 
     def close(self) -> None:
         self._conn.close()
@@ -130,9 +150,24 @@ Return ONLY the JSON array. No markdown, no explanation."""
         # For small batches, describe individually for better quality
         # For larger batches, use batch mode to save cost
         if len(frames) <= 5:
-            return self._describe_individually(frames)
+            results = self._describe_individually(frames)
         else:
-            return self._describe_batch(frames)
+            results = self._describe_batch(frames)
+
+        # Log cache statistics
+        if self._cache:
+            stats = self._cache.stats
+            total = stats["hits"] + stats["misses"]
+            if total > 0:
+                hit_rate = stats["hits"] / total * 100
+                logger.info(
+                    "Frame cache: %d/%d hits (%.1f%%)",
+                    stats["hits"],
+                    total,
+                    hit_rate,
+                )
+
+        return results
 
     def _describe_individually(self, frames: list[dict]) -> list[FrameDescription]:
         """Describe each frame with a separate vision call."""
