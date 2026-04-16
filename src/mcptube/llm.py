@@ -29,11 +29,11 @@ class LLMClient:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
-        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
+        "OPENROUTER_API_KEY": "openrouter/openai/gpt-4o-mini",
     }
 
     _FALLBACK_MODELS = [
-        "openrouter/qwen/qwen3-8b-instruct",
+        "openrouter/google/gemini-2.0-flash",
         "openrouter/meta-llama/llama-3.1-8b-instruct",
     ]
 
@@ -121,7 +121,6 @@ class LLMClient:
             )
 
         errors = []
-        tried_models = [self._model]
 
         for model in [self._model] + getattr(self, "_fallback_models", []):
             try:
