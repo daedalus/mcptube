@@ -206,10 +206,6 @@ class McpTubeService:
 
         logger.info("Re-processing video: %s", video_id)
 
-        # Clean existing wiki data (don't delete from repo)
-        if self._wiki:
-            self._wiki.remove_video(video_id)
-
         # Re-extract to get fresh metadata (file_size, format, etc.)
         logger.debug("Re-extracting video metadata from YouTube")
         video = self._extractor.extract(url)
