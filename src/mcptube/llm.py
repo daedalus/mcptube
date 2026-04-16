@@ -74,6 +74,7 @@ class LLMClient:
             'Return ONLY a JSON array of strings, e.g. ["AI", "LLM", "Tutorial"]. '
             "No explanation, no markdown."
         )
+        logger.debug("LLM classify request for: %s", title)
         response = self._complete(prompt)
         return self._parse_tags(response)
 
@@ -112,13 +113,19 @@ class LLMClient:
                 "No LLM API key found. Set one of: " + ", ".join(self._KEY_TO_MODEL.keys())
             )
         try:
+            logger.debug("LLM request to %s (max_tokens=%d)", self._model, max_tokens)
+            logger.debug("LLM prompt: %s", prompt[:200] + "..." if len(prompt) > 200 else prompt)
             response = litellm.completion(
                 model=self._model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content.strip()
+            logger.debug(
+                "LLM response: %s", content[:200] + "..." if len(content) > 200 else content
+            )
+            return content
         except Exception as e:
             raise LLMError(f"LLM request failed ({self._model}): {e}") from e
 

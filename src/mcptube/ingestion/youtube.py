@@ -134,9 +134,13 @@ class YouTubeExtractor:
         if settings.format:
             ydl_opts["format"] = settings.format
             logger.info("Using video format: %s", settings.format)
+
+        logger.debug("yt-dlp options: %s", ydl_opts)
         try:
+            logger.debug("Starting yt-dlp extraction for: %s", url)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+                logger.debug("yt-dlp extracted info: %s", info.get("id") if info else None)
                 if info is None:
                     raise ExtractionError(f"yt-dlp returned no info for: {url}")
                 return info
