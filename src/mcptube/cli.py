@@ -149,6 +149,29 @@ def add(
             reprocessed_video = svc.reprocess_video(video_id, text_only=text_only)
             typer.echo(f"✅ Re-processed: {reprocessed_video.title}")
             typer.echo(f"   Segments: {len(reprocessed_video.transcript)}")
+            if _show_frame_stats:
+                if reprocessed_video.frame_stats:
+                    typer.echo(
+                        f"   Frames:   ffmpeg: {reprocessed_video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {reprocessed_video.frame_stats.get('llm_processed', 0)}"
+                    )
+                if (
+                    reprocessed_video.format
+                    or reprocessed_video.file_size
+                    or reprocessed_video.width
+                ):
+                    stats_parts = []
+                    if reprocessed_video.format:
+                        stats_parts.append(reprocessed_video.format)
+                    if reprocessed_video.file_size:
+                        stats_parts.append(f"{reprocessed_video.file_size / (1024 * 1024):.1f}MB")
+                    if reprocessed_video.width and reprocessed_video.height:
+                        stats_parts.append(f"{reprocessed_video.width}x{reprocessed_video.height}")
+                    if reprocessed_video.vcodec:
+                        stats_parts.append(f"v:{reprocessed_video.vcodec}")
+                    if reprocessed_video.acodec:
+                        stats_parts.append(f"a:{reprocessed_video.acodec}")
+                    if stats_parts:
+                        typer.echo(f"   Video:    {', '.join(stats_parts)}")
         except Exception as e:
             typer.echo(f"❌ Re-processing failed: {e}", err=True)
             raise typer.Exit(code=1)
