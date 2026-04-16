@@ -241,7 +241,6 @@ def wiki_ask(question: str) -> dict:
     }
 
 
-
 @mcp.tool(annotations={"readOnlyHint": True})
 def wiki_history(slug: str) -> list[dict]:
     """View version history for a wiki page.
@@ -250,10 +249,7 @@ def wiki_history(slug: str) -> list[dict]:
         slug: Wiki page slug identifier.
     """
     versions = _get_service().wiki_history(slug)
-    return [
-        {"updated_at": v.updated_at.isoformat(), "title": v.title}
-        for v in versions
-    ]
+    return [{"updated_at": v.updated_at.isoformat(), "title": v.title} for v in versions]
 
 
 # --- Frame Extraction ---
@@ -368,8 +364,7 @@ def generate_report(video_id: str, query: str | None = None) -> dict:
             "tags": video.tags,
             "chapters": [ch.model_dump() for ch in video.chapters],
             "transcript": [
-                {"start": s.start, "end": s.end, "text": s.text}
-                for s in video.transcript
+                {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
             ],
             "query": query,
             "instructions": (
@@ -411,17 +406,19 @@ def generate_report_from_query(query: str, tags: list[str] | None = None) -> dic
         for vid in video_ids:
             try:
                 video = svc.get_info(vid)
-                videos.append({
-                    "video_id": video.video_id,
-                    "title": video.title,
-                    "channel": video.channel,
-                    "tags": video.tags,
-                    "chapters": [ch.model_dump() for ch in video.chapters],
-                    "transcript": [
-                        {"start": s.start, "end": s.end, "text": s.text}
-                        for s in video.transcript
-                    ],
-                })
+                videos.append(
+                    {
+                        "video_id": video.video_id,
+                        "title": video.title,
+                        "channel": video.channel,
+                        "tags": video.tags,
+                        "chapters": [ch.model_dump() for ch in video.chapters],
+                        "transcript": [
+                            {"start": s.start, "end": s.end, "text": s.text}
+                            for s in video.transcript
+                        ],
+                    }
+                )
             except VideoNotFoundError:
                 continue
 
@@ -447,6 +444,7 @@ def discover_videos(topic: str) -> dict:
         topic: Topic to search for.
     """
     import yt_dlp
+    from mcptube.config import settings
 
     ydl_opts = {
         "quiet": True,
@@ -454,6 +452,10 @@ def discover_videos(topic: str) -> dict:
         "extract_flat": True,
         "skip_download": True,
     }
+    if settings.cookies_file:
+        ydl_opts["cookies"] = str(settings.cookies_file)
+    if settings.js_runtimes:
+        ydl_opts["js-runtimes"] = settings.js_runtimes
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch15:{topic}", download=False)
@@ -464,13 +466,15 @@ def discover_videos(topic: str) -> dict:
             for entry in info.get("entries", []):
                 if not entry or not entry.get("id"):
                     continue
-                results.append({
-                    "video_id": entry.get("id", ""),
-                    "title": entry.get("title", ""),
-                    "channel": entry.get("channel", "") or entry.get("uploader", ""),
-                    "duration": float(entry.get("duration") or 0),
-                    "url": f"https://www.youtube.com/watch?v={entry.get('id', '')}",
-                })
+                results.append(
+                    {
+                        "video_id": entry.get("id", ""),
+                        "title": entry.get("title", ""),
+                        "channel": entry.get("channel", "") or entry.get("uploader", ""),
+                        "duration": float(entry.get("duration") or 0),
+                        "url": f"https://www.youtube.com/watch?v={entry.get('id', '')}",
+                    }
+                )
 
         return {
             "topic": topic,
@@ -494,17 +498,18 @@ def synthesize(video_ids: list[str], topic: str) -> dict:
         videos = []
         for vid in video_ids:
             video = svc.get_info(vid)
-            videos.append({
-                "video_id": video.video_id,
-                "title": video.title,
-                "channel": video.channel,
-                "tags": video.tags,
-                "chapters": [ch.model_dump() for ch in video.chapters],
-                "transcript": [
-                    {"start": s.start, "end": s.end, "text": s.text}
-                    for s in video.transcript
-                ],
-            })
+            videos.append(
+                {
+                    "video_id": video.video_id,
+                    "title": video.title,
+                    "channel": video.channel,
+                    "tags": video.tags,
+                    "chapters": [ch.model_dump() for ch in video.chapters],
+                    "transcript": [
+                        {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+                    ],
+                }
+            )
 
         return {
             "topic": topic,
@@ -529,10 +534,7 @@ def ask_video(video_id: str, question: str) -> dict:
     try:
         svc = _get_service()
         video = svc.get_info(video_id)
-        transcript = [
-            {"start": s.start, "end": s.end, "text": s.text}
-            for s in video.transcript
-        ]
+        transcript = [{"start": s.start, "end": s.end, "text": s.text} for s in video.transcript]
         return {
             "video_id": video.video_id,
             "title": video.title,
@@ -561,21 +563,21 @@ def ask_videos(video_ids: list[str], question: str) -> dict:
         videos = []
         for vid in video_ids:
             video = svc.get_info(vid)
-            videos.append({
-                "video_id": video.video_id,
-                "title": video.title,
-                "channel": video.channel,
-                "transcript": [
-                    {"start": s.start, "end": s.end, "text": s.text}
-                    for s in video.transcript
-                ],
-            })
+            videos.append(
+                {
+                    "video_id": video.video_id,
+                    "title": video.title,
+                    "channel": video.channel,
+                    "transcript": [
+                        {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+                    ],
+                }
+            )
         return {
             "question": question,
             "videos": videos,
             "instructions": (
-                "Answer based ONLY on these transcripts. "
-                "Cite timestamps [MM:SS] and video titles."
+                "Answer based ONLY on these transcripts. Cite timestamps [MM:SS] and video titles."
             ),
         }
     except VideoNotFoundError as e:
@@ -616,43 +618,49 @@ def _page_detail(page) -> dict:
     base = _page_summary(page)
 
     if isinstance(page, VideoPage):
-        base.update({
-            "video_id": page.video_id,
-            "channel": page.channel,
-            "duration": page.duration,
-            "processing_tier": page.processing_tier,
-            "summary": page.summary,
-            "key_timestamps": page.key_timestamps,
-            "key_frames": [f.model_dump() for f in page.key_frames],
-        })
+        base.update(
+            {
+                "video_id": page.video_id,
+                "channel": page.channel,
+                "duration": page.duration,
+                "processing_tier": page.processing_tier,
+                "summary": page.summary,
+                "key_timestamps": page.key_timestamps,
+                "key_frames": [f.model_dump() for f in page.key_frames],
+            }
+        )
 
     elif isinstance(page, EntityPage):
-        base.update({
-            "category": page.category.value,
-            "overview": page.overview,
-            "video_references": [
-                {
-                    "video_id": ref.video_id,
-                    "title": ref.title,
-                    "content": ref.content,
-                    "timestamps": ref.timestamps,
-                }
-                for ref in page.video_references
-            ],
-        })
+        base.update(
+            {
+                "category": page.category.value,
+                "overview": page.overview,
+                "video_references": [
+                    {
+                        "video_id": ref.video_id,
+                        "title": ref.title,
+                        "content": ref.content,
+                        "timestamps": ref.timestamps,
+                    }
+                    for ref in page.video_references
+                ],
+            }
+        )
 
     elif isinstance(page, (TopicPage, ConceptPage)):
-        base.update({
-            "synthesis": page.synthesis,
-            "contributions": [
-                {
-                    "video_id": c.video_id,
-                    "title": c.title,
-                    "content": c.content,
-                    "timestamps": c.timestamps,
-                }
-                for c in page.contributions
-            ],
-        })
+        base.update(
+            {
+                "synthesis": page.synthesis,
+                "contributions": [
+                    {
+                        "video_id": c.video_id,
+                        "title": c.title,
+                        "content": c.content,
+                        "timestamps": c.timestamps,
+                    }
+                    for c in page.contributions
+                ],
+            }
+        )
 
     return base

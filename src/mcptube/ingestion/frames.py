@@ -59,6 +59,10 @@ class FrameExtractor:
             "format": "best[ext=mp4]/best",
             "skip_download": True,
         }
+        if settings.cookies_file:
+            ydl_opts["cookies"] = str(settings.cookies_file)
+        if settings.js_runtimes:
+            ydl_opts["js-runtimes"] = settings.js_runtimes
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -77,10 +81,14 @@ class FrameExtractor:
 
         cmd = [
             "ffmpeg",
-            "-ss", str(timestamp),
-            "-i", stream_url,
-            "-frames:v", "1",
-            "-q:v", "2",
+            "-ss",
+            str(timestamp),
+            "-i",
+            stream_url,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "2",
             "-y",
             str(output),
         ]

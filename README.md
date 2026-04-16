@@ -328,6 +328,18 @@ mcptube wiki toc
 ---
 ## 📖 CLI Reference
 
+### Global Options
+
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--verbose`, `-v` | Enable verbose output | `mcptube -v add "https://..."` |
+| `--debug`, `-d` | Enable debug mode (shows all logs) | `mcptube -d add "https://..."` |
+| `--cookies`, `-c` | Path to cookies file for yt-dlp authentication | `mcptube -c cookies.txt add "..."` |
+| `--js-runtimes` | JavaScript runtime for yt-dlp (e.g., 'node') | `mcptube --js-runtimes node add "..."` |
+| `--no-proxy` | Ignore proxy environment variables | `mcptube --no-proxy add "..."` |
+| `--show-frame-stats` | Print frame extraction statistics | `mcptube --show-frame-stats add "..."` |
+| `--model`, `-m` | Override the default LLM model | `mcptube -m openrouter/openrouter/free add "..."` |
+
 ### Library Management
 
 | Command | Description | Example |
@@ -663,9 +675,20 @@ Set one or more to enable LLM features:
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-..."
 export GOOGLE_API_KEY="AI..."
+export OPENROUTER_API_KEY="sk-or-..."
 ```
 
-Auto-detection priority: Anthropic → OpenAI → Google.
+Auto-detection priority: Anthropic → OpenAI → Google → OpenRouter.
+
+**Using OpenRouter free models:**
+
+```bash
+# Uses the Free Models Router - auto-selects from available free models
+mcptube add "https://www.youtube.com/watch?v=..."
+
+# Or override with a specific model using --model/-m
+mcptube add "https://www.youtube.com/watch?v=..." --model "openrouter/openrouter/free"
+```
 
 ---
 

@@ -32,6 +32,20 @@ class Settings(BaseSettings):
     # LLM (BYOK — used in CLI mode, wired up later)
     default_model: str = "gpt-4o"
 
+    # yt-dlp options
+    cookies_file: Path | None = Field(
+        default=None,
+        description="Path to cookies file for yt-dlp authentication.",
+    )
+    js_runtimes: str | None = Field(
+        default=None,
+        description="JavaScript runtime for yt-dlp (e.g., 'node').",
+    )
+    no_proxy: bool = Field(
+        default=False,
+        description="Ignore proxy environment variables for yt-dlp.",
+    )
+
     @model_validator(mode="after")
     def _set_defaults(self) -> "Settings":
         """Set derived defaults that depend on other fields."""
@@ -47,7 +61,8 @@ class Settings(BaseSettings):
     def ensure_dirs(self) -> None:
         """Create all required directories if they don't exist."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.frames_dir.mkdir(parents=True, exist_ok=True)
+        if self.frames_dir:
+            self.frames_dir.mkdir(parents=True, exist_ok=True)
 
 
 # Module-level singleton — import this throughout the app

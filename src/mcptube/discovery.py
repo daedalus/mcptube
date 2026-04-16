@@ -70,12 +70,18 @@ class VideoDiscovery:
 
     def _search_youtube(self, topic: str) -> list[DiscoveredVideo]:
         """Search YouTube via yt-dlp and return raw results."""
+        from mcptube.config import settings
+
         ydl_opts = {
             "quiet": True,
             "no_warnings": True,
             "extract_flat": True,
             "skip_download": True,
         }
+        if settings.cookies_file:
+            ydl_opts["cookies"] = str(settings.cookies_file)
+        if settings.js_runtimes:
+            ydl_opts["js-runtimes"] = settings.js_runtimes
 
         query = f"ytsearch{self._SEARCH_COUNT}:{topic}"
         try:
@@ -88,23 +94,23 @@ class VideoDiscovery:
                 for entry in info["entries"]:
                     if not entry or not entry.get("id"):
                         continue
-                    results.append(DiscoveredVideo(
-                        video_id=entry.get("id", ""),
-                        title=entry.get("title", ""),
-                        channel=entry.get("channel", "") or entry.get("uploader", ""),
-                        duration=float(entry.get("duration") or 0),
-                        description=entry.get("description", "") or "",
-                        thumbnail_url=entry.get("thumbnail", "") or "",
-                    ))
+                    results.append(
+                        DiscoveredVideo(
+                            video_id=entry.get("id", ""),
+                            title=entry.get("title", ""),
+                            channel=entry.get("channel", "") or entry.get("uploader", ""),
+                            duration=float(entry.get("duration") or 0),
+                            description=entry.get("description", "") or "",
+                            thumbnail_url=entry.get("thumbnail", "") or "",
+                        )
+                    )
                 return results
 
         except yt_dlp.utils.DownloadError as e:
             logger.warning("YouTube search failed: %s", e)
             return []
 
-    def _filter_and_cluster(
-        self, topic: str, videos: list[DiscoveredVideo]
-    ) -> DiscoveryResult:
+    def _filter_and_cluster(self, topic: str, videos: list[DiscoveredVideo]) -> DiscoveryResult:
         """Use LLM to filter irrelevant results and cluster the rest."""
         import json
 

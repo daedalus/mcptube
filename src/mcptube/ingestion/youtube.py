@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
@@ -11,6 +12,23 @@ import yt_dlp
 from mcptube.models import Chapter, TranscriptSegment, Video
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cookie_file() -> Path | None:
+    """Get the cookie file path from settings, mcptube data directory, or current dir."""
+    from mcptube.config import settings
+
+    if settings.cookies_file:
+        return settings.cookies_file
+    try:
+        cookie_path = settings.data_dir / ".cookies.txt"
+        if cookie_path.exists():
+            return cookie_path
+    except Exception:
+        pass
+    # Fallback to current directory
+    fallback = Path(".cookies.txt")
+    return fallback if fallback.exists() else None
 
 
 class ExtractionError(Exception):
@@ -85,7 +103,9 @@ class YouTubeExtractor:
 
     def _fetch_info(self, url: str) -> dict:
         """Fetch video info dict from yt-dlp without downloading media."""
-        ydl_opts = {
+        from mcptube.config import settings
+
+        ydl_opts: dict = {
             "quiet": True,
             "no_warnings": True,
             "writesubtitles": True,
@@ -94,13 +114,31 @@ class YouTubeExtractor:
             "subtitlesformat": "json3",
             "skip_download": True,
         }
+        cookie_file = _get_cookie_file()
+        if cookie_file:
+            ydl_opts["cookiefile"] = str(cookie_file)
+            logger.info("Using cookies from: %s", cookie_file)
+        if settings.js_runtimes:
+            ydl_opts["js_runtimes"] = {settings.js_runtimes: {}}
+            logger.info("Using JS runtime: %s", settings.js_runtimes)
+        if settings.no_proxy:
+            ydl_opts["proxy"] = ""
+            logger.info("Proxy disabled for yt-dlp")
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info is None:
                     raise ExtractionError(f"yt-dlp returned no info for: {url}")
                 return info
-        except yt_dlp.utils.DownloadError as e:
+        except Exception as e:
+            if "Sign in to confirm" in str(e) or "bot" in str(e).lower():
+                raise ExtractionError(
+                    f"Failed to extract video info: {e}\n\n"
+                    "YouTube is blocking the request. Try:\n"
+                    "  1. Use --cookies-from-browser chrome to export fresh cookies\n"
+                    "  2. Or use a browser extension like 'Get cookies.txt LOCALLY'\n"
+                    "  3. Ensure cookies are not expired"
+                ) from e
             raise ExtractionError(f"Failed to extract video info: {e}") from e
 
     def _extract_transcript(self, info: dict) -> list[TranscriptSegment]:
@@ -170,11 +208,13 @@ class YouTubeExtractor:
             start_ms = event.get("tStartMs", 0)
             duration_ms = event.get("dDurationMs", 0)
 
-            segments.append(TranscriptSegment(
-                start=start_ms / 1000.0,
-                duration=duration_ms / 1000.0,
-                text=text,
-            ))
+            segments.append(
+                TranscriptSegment(
+                    start=start_ms / 1000.0,
+                    duration=duration_ms / 1000.0,
+                    text=text,
+                )
+            )
 
         return segments
 
