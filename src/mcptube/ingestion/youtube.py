@@ -10,6 +10,7 @@ from urllib.request import urlopen
 import yt_dlp
 
 from mcptube.models import Chapter, TranscriptSegment, Video
+from mcptube.storage.cache import SubtitleCacheDB
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,9 @@ class YouTubeExtractor:
 
     _LANG_PREFERENCE = ("en", "en-orig", "en-US", "en-GB")
 
+    def __init__(self, subtitle_cache: SubtitleCacheDB | None = None) -> None:
+        self._subtitle_cache = subtitle_cache
+
     def extract(self, url: str) -> Video:
         """Extract metadata and transcript from a YouTube video URL.
 
@@ -65,7 +69,9 @@ class YouTubeExtractor:
         """
         video_id = self.parse_video_id(url)
         info = self._fetch_info(url)
-        transcript = self._extract_transcript(info)
+        transcript = self._get_cached_transcript(video_id) or self._extract_transcript(info)
+        if transcript:
+            self._cache_transcript(video_id, transcript)
         chapters = self._extract_chapters(info)
         video_stats = self._extract_video_stats(info)
 
@@ -228,6 +234,27 @@ class YouTubeExtractor:
             return []
 
         return self._parse_json3(sub_data)
+
+    def _get_cached_transcript(self, video_id: str) -> list[TranscriptSegment] | None:
+        """Get cached transcript for video ID."""
+        try:
+            if self._subtitle_cache is None:
+                self._subtitle_cache = SubtitleCacheDB()
+            cached = self._subtitle_cache.get(video_id)
+            if cached:
+                return [TranscriptSegment(**s) for s in cached]
+        except Exception:
+            pass
+        return None
+
+    def _cache_transcript(self, video_id: str, transcript: list[TranscriptSegment]) -> None:
+        """Cache transcript for video ID."""
+        try:
+            if self._subtitle_cache is None:
+                self._subtitle_cache = SubtitleCacheDB()
+            self._subtitle_cache.put(video_id, transcript)
+        except Exception:
+            pass
 
     def _find_json3(self, subs: dict) -> dict | None:
         """Find and download json3 subtitle data for the best English variant."""
