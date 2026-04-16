@@ -100,7 +100,7 @@ class FrameCacheDB:
         if self._hash_set and os.path.exists(self.bloom_path):
             self.bloom = BloomFilter.load(self.bloom_path)
         else:
-            self.bloom = BloomFilter(capacity=max(1000, len(self._hash_set) * 2))
+            self.bloom = BloomFilter(capacity=max(1000, len(self._hash_set) * 10))
             for h in self._hash_set:
                 self.bloom.add(h)
 
@@ -213,7 +213,7 @@ class PromptCacheDB:
         if self._hash_set and os.path.exists(self.bloom_path):
             self.bloom = BloomFilter.load(self.bloom_path)
         else:
-            self.bloom = BloomFilter(capacity=max(1000, len(self._hash_set) * 2))
+            self.bloom = BloomFilter(capacity=max(1000, len(self._hash_set) * 10))
             for h in self._hash_set:
                 self.bloom.add(h)
 
