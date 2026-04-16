@@ -160,6 +160,19 @@ def info(query: str = typer.Argument(..., help="Video ID, index number, or searc
     typer.echo(f"Chapters:    {len(video.chapters)}")
     typer.echo(f"Segments:    {len(video.transcript)}")
     typer.echo(f"Added:       {video.added_at}")
+    if video.format or video.file_size or video.width:
+        typer.echo("\nVideo Stats:")
+        if video.format:
+            typer.echo(f"  Format:    {video.format}")
+        if video.file_size:
+            size_mb = video.file_size / (1024 * 1024)
+            typer.echo(f"  Size:      {size_mb:.1f} MB")
+        if video.width and video.height:
+            typer.echo(f"  Resolution: {video.width}x{video.height}")
+        if video.vcodec:
+            typer.echo(f"  Video:     {video.vcodec}")
+        if video.acodec:
+            typer.echo(f"  Audio:     {video.acodec}")
     if video.chapters:
         typer.echo("\nChapters:")
         for ch in video.chapters:

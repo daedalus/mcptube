@@ -67,6 +67,7 @@ class YouTubeExtractor:
         info = self._fetch_info(url)
         transcript = self._extract_transcript(info)
         chapters = self._extract_chapters(info)
+        video_stats = self._extract_video_stats(info)
 
         return Video(
             video_id=video_id,
@@ -77,6 +78,12 @@ class YouTubeExtractor:
             thumbnail_url=info.get("thumbnail", ""),
             chapters=chapters,
             transcript=transcript,
+            format=video_stats.get("format", ""),
+            file_size=video_stats.get("file_size", 0),
+            width=video_stats.get("width", 0),
+            height=video_stats.get("height", 0),
+            vcodec=video_stats.get("vcodec", ""),
+            acodec=video_stats.get("acodec", ""),
         )
 
     @classmethod
@@ -140,6 +147,65 @@ class YouTubeExtractor:
                     "  3. Ensure cookies are not expired"
                 ) from e
             raise ExtractionError(f"Failed to extract video info: {e}") from e
+
+    def _extract_video_stats(self, info: dict) -> dict:
+        """Extract video format and size info from yt-dlp info dict."""
+        result = {
+            "format": "",
+            "file_size": 0,
+            "width": 0,
+            "height": 0,
+            "vcodec": "",
+            "acodec": "",
+        }
+        # Try to get format info from requested_formats or formats list
+        formats = info.get("formats") or []
+        # Get the best quality format (usually last with video)
+        best = formats[-1] if formats else {}
+
+        if best:
+            # Resolution
+            resolution = best.get("resolution", "")
+            if resolution:
+                result["format"] = resolution
+                if "x" in resolution:
+                    w, h = resolution.split("x")
+                    result["width"] = int(w) if w.isdigit() else 0
+                    result["height"] = int(h) if h.isdigit() else 0
+
+            # File size
+            result["file_size"] = int(best.get("filesize", 0) or 0)
+            if result["file_size"] == 0:
+                result["file_size"] = int(best.get("filesize_approx", 0) or 0)
+
+            # Codecs
+            vcodec = best.get("vcodec", "")
+            if vcodec and vcodec != "none":
+                # Extract short codec name (e.g., "avc1.64001F" -> "avc1")
+                result["vcodec"] = vcodec.split(".")[0].replace("vp9", "vp9").replace("av01", "av1")
+            acodec = best.get("acodec", "")
+            if acodec and acodec != "none":
+                result["acodec"] = (
+                    acodec.split(".")[0].replace("mp4a", "aac").replace("opus", "opus")
+                )
+
+            # Fallback: infer format from height
+            if not result["format"] and result["height"]:
+                h = result["height"]
+                if h >= 2160:
+                    result["format"] = "4K"
+                elif h >= 1440:
+                    result["format"] = "2K"
+                elif h >= 1080:
+                    result["format"] = "1080p"
+                elif h >= 720:
+                    result["format"] = "720p"
+                elif h >= 480:
+                    result["format"] = "480p"
+                else:
+                    result["format"] = f"{h}p"
+
+        return result
 
     def _extract_transcript(self, info: dict) -> list[TranscriptSegment]:
         """Extract transcript segments, preferring manual over auto-generated."""

@@ -42,6 +42,12 @@ class Video(BaseModel):
     frame_stats: dict = Field(
         default_factory=dict
     )  # {"ffmpeg_extracted": int, "llm_processed": int}
+    format: str = ""  # video format (e.g., "1080p", "4K")
+    file_size: int = 0  # total size in bytes
+    width: int = 0  # video width in pixels
+    height: int = 0  # video height in pixels
+    vcodec: str = ""  # video codec (e.g., "avc1")
+    acodec: str = ""  # audio codec (e.g., "mp4a")
 
     @computed_field
     @property
