@@ -91,6 +91,16 @@ def global_options(
     if format is not None:
         settings.format = format
 
+    if _debug:
+        import sys
+
+        print(f"DEBUG: verbose={_verbose} debug={_debug}", file=sys.stderr)
+        print(f"DEBUG: cookies={settings.cookies_file}", file=sys.stderr)
+        print(f"DEBUG: js_runtimes={settings.js_runtimes}", file=sys.stderr)
+        print(f"DEBUG: no_proxy={settings.no_proxy}", file=sys.stderr)
+        print(f"DEBUG: model={_custom_model}", file=sys.stderr)
+        print(f"DEBUG: format={_custom_format}", file=sys.stderr)
+
 
 def _get_service() -> McpTubeService:
     """Create a service instance with default dependencies."""

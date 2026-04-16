@@ -98,7 +98,9 @@ class McpTubeService:
             )
 
         logger.info("Ingesting video: %s", url)
+        logger.debug("Extracting URL: %s", url)
         video = self._extractor.extract(url)
+        logger.debug("Extracted video: %s - %s (%s)", video.video_id, video.title, video.duration)
         self._repo.save(video)
 
         # Auto-classify if LLM is available
