@@ -29,17 +29,24 @@ class LLMClient:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
-        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
+        "OPENROUTER_API_KEY": "openrouter/google/gemini-2.0-flash",
     }
 
-    def __init__(self, model: str | None = None) -> None:
+    _FALLBACK_MODELS = [
+        "openrouter/qwen/qwen3-8b-instruct",
+        "openrouter/meta-llama/llama-3.1-8b-instruct",
+    ]
+
+    def __init__(self, model: str | None = None, fallback_models: list[str] | None = None) -> None:
         """Initialize LLM client.
 
         Args:
             model: LiteLLM model string. If None, auto-detects from
                    available API keys or falls back to settings.default_model.
+            fallback_models: List of fallback models to try if primary fails.
         """
         self._model = model or self._detect_model()
+        self._fallback_models = fallback_models or self._FALLBACK_MODELS
 
     @property
     def model(self) -> str:
@@ -112,22 +119,36 @@ class LLMClient:
             raise LLMError(
                 "No LLM API key found. Set one of: " + ", ".join(self._KEY_TO_MODEL.keys())
             )
-        try:
-            logger.debug("LLM request to %s (max_tokens=%d)", self._model, max_tokens)
-            logger.debug("LLM prompt: %s", prompt[:200] + "..." if len(prompt) > 200 else prompt)
-            response = litellm.completion(
-                model=self._model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=max_tokens,
-            )
-            content = response.choices[0].message.content.strip()
-            logger.debug(
-                "LLM response: %s", content[:200] + "..." if len(content) > 200 else content
-            )
-            return content
-        except Exception as e:
-            raise LLMError(f"LLM request failed ({self._model}): {e}") from e
+
+        errors = []
+        tried_models = [self._model]
+
+        for model in [self._model] + getattr(self, "_fallback_models", []):
+            try:
+                logger.debug("LLM request to %s (max_tokens=%d)", model, max_tokens)
+                logger.debug(
+                    "LLM prompt: %s", prompt[:200] + "..." if len(prompt) > 200 else prompt
+                )
+                response = litellm.completion(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_tokens=max_tokens,
+                )
+                content = response.choices[0].message.content.strip()
+                logger.debug(
+                    "LLM response: %s", content[:200] + "..." if len(content) > 200 else content
+                )
+                if model != self._model:
+                    logger.info("Primary model failed, using fallback: %s", model)
+                return content
+            except Exception as e:
+                errors.append((model, e))
+                logger.warning("Model %s failed: %s", model, e)
+                continue
+
+        error_msg = "; ".join(f"{m}: {e}" for m, e in errors)
+        raise LLMError(f"All models failed: {error_msg}")
 
     def _detect_model(self) -> str:
         """Auto-detect the best available model from environment keys."""

@@ -39,6 +39,7 @@ _debug = False
 _show_frame_stats = False
 _custom_model: str | None = None
 _custom_format: str | None = None
+_custom_fallback: list[str] | None = None
 
 
 @app.callback()
@@ -59,6 +60,11 @@ def global_options(
         False, "--show-frame-stats", help="Print statistics about frame extraction."
     ),
     model: str | None = typer.Option(None, "--model", "-m", help="Override the LLM model to use."),
+    fallback: str | None = typer.Option(
+        None,
+        "--fallback",
+        help="Fallback LLM model (comma-separated list) if primary fails.",
+    ),
     format: str | None = typer.Option(
         None,
         "--format",
@@ -66,11 +72,12 @@ def global_options(
         help="Video format (e.g., 'best', '1080p', '720p', '480p', 'worst').",
     ),
 ) -> None:
-    global _verbose, _debug, _show_frame_stats, _custom_model, _custom_format
+    global _verbose, _debug, _show_frame_stats, _custom_model, _custom_format, _custom_fallback
     _verbose = verbose
     _debug = debug
     _show_frame_stats = show_frame_stats
     _custom_model = model
+    _custom_fallback = [f.strip() for f in fallback.split(",")] if fallback else None
     _custom_format = format
     import sys
 
@@ -105,7 +112,7 @@ def global_options(
 def _get_service() -> McpTubeService:
     """Create a service instance with default dependencies."""
     settings.ensure_dirs()
-    llm = LLMClient(model=_custom_model)
+    llm = LLMClient(model=_custom_model, fallback_models=_custom_fallback)
     wiki_repo = FileWikiRepository()
     wiki_engine = WikiEngine(repo=wiki_repo, llm=llm)
     return McpTubeService(
