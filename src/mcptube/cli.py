@@ -8,7 +8,7 @@ from pathlib import Path
 from mcptube.config import settings
 from mcptube.ingestion.frames import FrameExtractionError
 from mcptube.ingestion.youtube import ExtractionError
-from mcptube.llm import LLMClient
+from mcptube.llm import LLMClient, PromptCacheDB
 from mcptube.service import (
     AmbiguousVideoError,
     McpTubeService,
@@ -144,7 +144,12 @@ def global_options(
 def _get_service(max_frames: int | None = None) -> McpTubeService:
     """Create a service instance with default dependencies."""
     settings.ensure_dirs()
-    llm = LLMClient(model=_custom_model, fallback_models=_custom_fallback)
+    prompt_cache = PromptCacheDB()
+    llm = LLMClient(
+        model=_custom_model,
+        fallback_models=_custom_fallback,
+        prompt_cache=prompt_cache,
+    )
     wiki_repo = FileWikiRepository()
     wiki_engine = WikiEngine(repo=wiki_repo, llm=llm)
     return McpTubeService(
