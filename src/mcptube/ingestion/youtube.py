@@ -166,12 +166,25 @@ class YouTubeExtractor:
         if best:
             # Resolution
             resolution = best.get("resolution", "")
-            if resolution:
-                result["format"] = resolution
-                if "x" in resolution:
-                    w, h = resolution.split("x")
-                    result["width"] = int(w) if w.isdigit() else 0
-                    result["height"] = int(h) if h.isdigit() else 0
+            if resolution and "x" in resolution:
+                w, h = resolution.split("x")
+                result["width"] = int(w) if w.isdigit() else 0
+                result["height"] = int(h) if h.isdigit() else 0
+
+                # Convert to user-friendly format label
+                h_int = result["height"]
+                if h_int >= 2160:
+                    result["format"] = "4K"
+                elif h_int >= 1440:
+                    result["format"] = "2K"
+                elif h_int >= 1080:
+                    result["format"] = "1080p"
+                elif h_int >= 720:
+                    result["format"] = "720p"
+                elif h_int >= 480:
+                    result["format"] = "480p"
+                else:
+                    result["format"] = f"{h_int}p"
 
             # File size
             result["file_size"] = int(best.get("filesize", 0) or 0)
@@ -188,22 +201,6 @@ class YouTubeExtractor:
                 result["acodec"] = (
                     acodec.split(".")[0].replace("mp4a", "aac").replace("opus", "opus")
                 )
-
-            # Fallback: infer format from height
-            if not result["format"] and result["height"]:
-                h = result["height"]
-                if h >= 2160:
-                    result["format"] = "4K"
-                elif h >= 1440:
-                    result["format"] = "2K"
-                elif h >= 1080:
-                    result["format"] = "1080p"
-                elif h >= 720:
-                    result["format"] = "720p"
-                elif h >= 480:
-                    result["format"] = "480p"
-                else:
-                    result["format"] = f"{h}p"
 
         return result
 
