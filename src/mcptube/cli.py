@@ -40,6 +40,7 @@ _show_frame_stats = False
 _custom_model: str | None = None
 _custom_format: str | None = None
 _custom_fallback: list[str] | None = None
+_cleanup_if_successful = False
 
 
 @app.callback()
@@ -79,14 +80,27 @@ def global_options(
         "-f",
         help="Video format (e.g., 'best', '1080p', '720p', '480p', 'worst').",
     ),
+    cleanup_if_successful: bool = typer.Option(
+        False,
+        "--cleanup-if-successful",
+        help="Delete downloaded video and frame images after successful wiki generation.",
+    ),
 ) -> None:
-    global _verbose, _debug, _show_frame_stats, _custom_model, _custom_format, _custom_fallback
+    global \
+        _verbose, \
+        _debug, \
+        _show_frame_stats, \
+        _custom_model, \
+        _custom_format, \
+        _custom_fallback, \
+        _cleanup_if_successful
     _verbose = verbose
     _debug = debug
     _show_frame_stats = show_frame_stats
     _custom_model = model
     _custom_fallback = [f.strip() for f in fallback.split(",")] if fallback else None
     _custom_format = format
+    _cleanup_if_successful = cleanup_if_successful
     import sys
 
     for h in logging.root.handlers[:]:
@@ -105,6 +119,9 @@ def global_options(
         settings.no_proxy = True
     if proxy is not None:
         settings.proxy = proxy
+        import litellm
+
+        litellm.proxy = proxy
     if cookies_from_browser is not None:
         settings.cookies_from_browser = cookies_from_browser
     if format is not None:
@@ -121,6 +138,7 @@ def global_options(
         print(f"DEBUG: cookies_from_browser={settings.cookies_from_browser}", file=sys.stderr)
         print(f"DEBUG: model={_custom_model}", file=sys.stderr)
         print(f"DEBUG: format={_custom_format}", file=sys.stderr)
+        print(f"DEBUG: cleanup_if_successful={_cleanup_if_successful}", file=sys.stderr)
 
 
 def _get_service() -> McpTubeService:
@@ -227,6 +245,10 @@ def add(
                     stats_parts.append(f"a:{video.acodec}")
                 if stats_parts:
                     typer.echo(f"   Video:    {', '.join(stats_parts)}")
+
+        if _cleanup_if_successful:
+            svc.cleanup_video_files(video.video_id)
+            typer.echo("   Cleanup:  🗑️  (removed downloaded files)")
     except VideoAlreadyExistsError as e:
         typer.echo(f"⚠️  {e}", err=True)
         raise typer.Exit(code=1)

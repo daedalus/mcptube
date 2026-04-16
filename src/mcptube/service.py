@@ -661,3 +661,40 @@ class McpTubeService:
             mins, secs = divmod(int(seg.start), 60)
             lines.append(f"[{mins:02d}:{secs:02d}] {seg.text}")
         return "\n".join(lines)
+
+    def cleanup_video_files(self, video_id: str) -> None:
+        """Remove downloaded video and frame files for a video.
+
+        Args:
+            video_id: The video ID to clean up.
+        """
+        import shutil
+        import glob
+
+        logger.info("Cleaning up files for video: %s", video_id)
+
+        frames_dir = settings.frames_dir
+        if not frames_dir or not frames_dir.exists():
+            return
+
+        removed_count = 0
+
+        frame_pattern = f"{video_id}_*.jpg"
+        for frame_path in glob.glob(str(frames_dir / frame_pattern)):
+            try:
+                Path(frame_path).unlink(missing_ok=True)
+                removed_count += 1
+                logger.debug("Removed frame: %s", frame_path)
+            except OSError as e:
+                logger.warning("Failed to remove frame %s: %s", frame_path, e)
+
+        scene_dir = frames_dir / f"{video_id}_scenes"
+        if scene_dir.exists():
+            try:
+                shutil.rmtree(scene_dir)
+                removed_count += 1
+                logger.debug("Removed scene directory: %s", scene_dir)
+            except OSError as e:
+                logger.warning("Failed to remove scene directory %s: %s", scene_dir, e)
+
+        logger.info("Cleanup complete: removed %d items for video %s", removed_count, video_id)
