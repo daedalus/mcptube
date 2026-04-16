@@ -8,7 +8,8 @@ from pathlib import Path
 from mcptube.config import settings
 from mcptube.ingestion.frames import FrameExtractionError
 from mcptube.ingestion.youtube import ExtractionError
-from mcptube.llm import LLMClient, PromptCacheDB
+from mcptube.llm import LLMClient
+from mcptube.storage.cache import PromptCacheDB
 from mcptube.service import (
     AmbiguousVideoError,
     McpTubeService,

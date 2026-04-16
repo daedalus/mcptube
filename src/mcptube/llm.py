@@ -1,86 +1,18 @@
 """LLM integration via LiteLLM for BYOK CLI operations."""
 
-import hashlib
 import json
 import logging
 import os
-import sqlite3
 
 import litellm
 
 from mcptube.config import settings
+from mcptube.storage.cache import PromptCacheDB
 
 logger = logging.getLogger(__name__)
 
 # Suppress LiteLLM's verbose logging
 litellm.suppress_debug_info = True
-
-_PROMPT_CACHE_DB = "prompt_cache.db"
-
-
-class PromptCacheDB:
-    """Persistent SQLite cache for LLM prompt responses indexed by prompt hash."""
-
-    def __init__(self, db_path=None):
-        self.db_path = db_path or settings.data_dir / _PROMPT_CACHE_DB
-        self._conn = sqlite3.connect(str(self.db_path))
-        self._conn.row_factory = sqlite3.Row
-        self._hits = 0
-        self._misses = 0
-        self._initialize()
-        logger.info("Prompt cache initialized: %s", self.db_path)
-
-    def _initialize(self):
-        self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS prompt_responses (
-                prompt_hash TEXT PRIMARY KEY,
-                response TEXT NOT NULL
-            )
-        """)
-        self._conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_prompt_hash ON prompt_responses(prompt_hash)
-        """)
-        self._conn.commit()
-
-    def _compute_hash(self, prompt: str) -> str:
-        """Compute SHA256 hash of prompt."""
-        return hashlib.sha256(prompt.encode()).hexdigest()
-
-    def get(self, prompt: str) -> str | None:
-        """Get cached response for prompt, or None if not cached."""
-        prompt_hash = self._compute_hash(prompt)
-        cursor = self._conn.execute(
-            "SELECT response FROM prompt_responses WHERE prompt_hash = ?",
-            (prompt_hash,),
-        )
-        row = cursor.fetchone()
-        if row:
-            self._hits += 1
-            logger.debug("Prompt cache hit: %s...", prompt[:50])
-            return row["response"]
-        self._misses += 1
-        logger.debug("Prompt cache miss")
-        return None
-
-    def put(self, prompt: str, response: str) -> None:
-        """Store prompt hash → response mapping."""
-        prompt_hash = self._compute_hash(prompt)
-        try:
-            self._conn.execute(
-                "INSERT INTO prompt_responses (prompt_hash, response) VALUES (?, ?)",
-                (prompt_hash, response),
-            )
-            self._conn.commit()
-            logger.debug("Prompt cached: %s...", prompt[:50])
-        except sqlite3.IntegrityError:
-            pass
-
-    @property
-    def stats(self) -> dict:
-        return {"hits": self._hits, "misses": self._misses}
-
-    def close(self):
-        self._conn.close()
 
 
 class LLMError(Exception):

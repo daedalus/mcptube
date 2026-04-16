@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from mcptube.llm import LLMClient, LLMError
-from mcptube.ingestion.vision import FrameCacheDB, VisionDescriber
+from mcptube.ingestion.vision import VisionDescriber
+from mcptube.storage.cache import FrameCacheDB
 from mcptube.wiki.models import FrameDescription
 
 
