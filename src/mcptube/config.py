@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # LLM (BYOK — used in CLI mode, wired up later)
     default_model: str = "gpt-4o"
 
+    # Vision processing
+    max_frames: int = Field(
+        default=50,
+        description="Maximum scene frames to extract for vision analysis.",
+    )
+
     # yt-dlp options
     cookies_file: Path | None = Field(
         default=None,

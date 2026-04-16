@@ -51,6 +51,7 @@ class McpTubeService:
         llm_client: LLMClient | None = None,
         scene_extractor: SceneFrameExtractor | None = None,
         vision_describer: VisionDescriber | None = None,
+        max_frames: int | None = None,
     ) -> None:
         self._repo = repository
         self._extractor = extractor or YouTubeExtractor()
@@ -60,6 +61,7 @@ class McpTubeService:
         self._report_builder: ReportBuilder | None = None
         self._discovery: VideoDiscovery | None = None
         self._scene_extractor = scene_extractor or SceneFrameExtractor()
+        self._max_frames = max_frames or settings.max_frames
         frame_cache = FrameCacheDB() if vision_describer is None else vision_describer._cache
         self._vision_describer = vision_describer or VisionDescriber(self._llm, frame_cache)
 
@@ -120,7 +122,9 @@ class McpTubeService:
         frames = []
         if not text_only:
             try:
-                frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                frames = self._scene_extractor.extract_scene_frames(
+                    video.video_id, max_frames=self._max_frames
+                )
                 frame_stats["ffmpeg_extracted"] = len(frames)
                 logger.info("Scene frames: extracted %d frames", len(frames))
             except SceneFrameError as e:
@@ -226,7 +230,9 @@ class McpTubeService:
         frames = []
         if not text_only:
             try:
-                frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                frames = self._scene_extractor.extract_scene_frames(
+                    video.video_id, max_frames=self._max_frames
+                )
                 frame_stats["ffmpeg_extracted"] = len(frames)
                 logger.info("Scene frames: extracted %d frames", len(frames))
             except SceneFrameError as e:

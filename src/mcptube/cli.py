@@ -141,7 +141,7 @@ def global_options(
         print(f"DEBUG: cleanup_if_successful={_cleanup_if_successful}", file=sys.stderr)
 
 
-def _get_service() -> McpTubeService:
+def _get_service(max_frames: int | None = None) -> McpTubeService:
     """Create a service instance with default dependencies."""
     settings.ensure_dirs()
     llm = LLMClient(model=_custom_model, fallback_models=_custom_fallback)
@@ -151,6 +151,7 @@ def _get_service() -> McpTubeService:
         repository=SQLiteVideoRepository(),
         wiki_engine=wiki_engine,
         llm_client=llm,
+        max_frames=max_frames,
     )
 
 
@@ -176,9 +177,12 @@ def add(
     reprocess: bool = typer.Option(
         False, "--reprocess", help="Re-process an existing video without removing it first."
     ),
+    max_frames: int = typer.Option(
+        50, "--max-frames", help="Maximum frames to extract for vision analysis."
+    ),
 ) -> None:
     """Ingest a YouTube video into the library and build wiki pages."""
-    svc = _get_service()
+    svc = _get_service(max_frames=max_frames)
     video_id = svc._extractor.parse_video_id(url)
 
     if reprocess and svc._repo.exists(video_id):
