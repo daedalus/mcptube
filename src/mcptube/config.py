@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         default=False,
         description="Ignore proxy environment variables for yt-dlp.",
     )
+    format: str | None = Field(
+        default=None,
+        description="Preferred video format (e.g., 'best', '1080p', '720p', '480p', 'worst').",
+    )
 
     @model_validator(mode="after")
     def _set_defaults(self) -> "Settings":

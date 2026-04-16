@@ -37,6 +37,7 @@ _verbose = False
 _debug = False
 _show_frame_stats = False
 _custom_model: str | None = None
+_custom_format: str | None = None
 
 
 @app.callback()
@@ -57,12 +58,19 @@ def global_options(
         False, "--show-frame-stats", help="Print statistics about frame extraction."
     ),
     model: str | None = typer.Option(None, "--model", "-m", help="Override the LLM model to use."),
+    format: str | None = typer.Option(
+        None,
+        "--format",
+        "-f",
+        help="Video format (e.g., 'best', '1080p', '720p', '480p', 'worst').",
+    ),
 ) -> None:
-    global _verbose, _debug, _show_frame_stats, _custom_model
+    global _verbose, _debug, _show_frame_stats, _custom_model, _custom_format
     _verbose = verbose
     _debug = debug
     _show_frame_stats = show_frame_stats
     _custom_model = model
+    _custom_format = format
     if _debug:
         logging.getLogger().setLevel(logging.DEBUG)
     elif _verbose:
@@ -73,6 +81,8 @@ def global_options(
         settings.js_runtimes = js_runtimes
     if no_proxy:
         settings.no_proxy = True
+    if format is not None:
+        settings.format = format
 
 
 def _get_service() -> McpTubeService:

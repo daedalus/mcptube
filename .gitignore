@@ -45,3 +45,5 @@ dist/
 *.html
 
 test.md
+*.mp4
+litellm_config.yaml

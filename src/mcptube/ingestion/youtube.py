@@ -131,6 +131,9 @@ class YouTubeExtractor:
         if settings.no_proxy:
             ydl_opts["proxy"] = ""
             logger.info("Proxy disabled for yt-dlp")
+        if settings.format:
+            ydl_opts["format"] = settings.format
+            logger.info("Using video format: %s", settings.format)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
