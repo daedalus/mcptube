@@ -121,10 +121,25 @@ def add(
             typer.echo(f"   Tags:     {', '.join(video.tags)}")
         tier = "text-only" if text_only else "full analysis"
         typer.echo(f"   Wiki:     ✅ (processed: {tier})")
-        if _show_frame_stats and video.frame_stats:
-            typer.echo(
-                f"   Frames:   ffmpeg: {video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {video.frame_stats.get('llm_processed', 0)}"
-            )
+        if _show_frame_stats:
+            if video.frame_stats:
+                typer.echo(
+                    f"   Frames:   ffmpeg: {video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {video.frame_stats.get('llm_processed', 0)}"
+                )
+            if video.format or video.file_size or video.width:
+                stats_parts = []
+                if video.format:
+                    stats_parts.append(video.format)
+                if video.file_size:
+                    stats_parts.append(f"{video.file_size / (1024 * 1024):.1f}MB")
+                if video.width and video.height:
+                    stats_parts.append(f"{video.width}x{video.height}")
+                if video.vcodec:
+                    stats_parts.append(f"v:{video.vcodec}")
+                if video.acodec:
+                    stats_parts.append(f"a:{video.acodec}")
+                if stats_parts:
+                    typer.echo(f"   Video:    {', '.join(stats_parts)}")
     except VideoAlreadyExistsError as e:
         typer.echo(f"⚠️  {e}", err=True)
         raise typer.Exit(code=1)
