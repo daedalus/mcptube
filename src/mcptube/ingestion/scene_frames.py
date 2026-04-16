@@ -7,6 +7,7 @@ from pathlib import Path
 import yt_dlp
 
 from mcptube.config import settings
+from mcptube.ingestion.youtube import _get_cookie_file
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,16 @@ class SceneFrameExtractor:
             "format": "best[ext=mp4]/best",
             "skip_download": True,
         }
+        cookie_file = _get_cookie_file()
+        if cookie_file:
+            ydl_opts["cookiefile"] = str(cookie_file)
+            logger.debug("Using cookies for scene frames: %s", cookie_file)
+        if settings.js_runtimes:
+            ydl_opts["js_runtimes"] = {settings.js_runtimes: {}}
+            logger.debug("Using JS runtime for scene frames: %s", settings.js_runtimes)
+        if settings.no_proxy:
+            ydl_opts["proxy"] = ""
+            logger.debug("Proxy disabled for scene frames")
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -112,11 +123,16 @@ class SceneFrameExtractor:
         # -frame_pts 1 — write PTS as frame number (for timestamp recovery)
         cmd = [
             "ffmpeg",
-            "-i", stream_url,
-            "-vf", f"select='gt(scene,{self._threshold})',scale={self._SCALE_WIDTH}:-1,showinfo",
-            "-vsync", "vfr",
-            "-frames:v", str(max_frames),
-            "-q:v", "2",
+            "-i",
+            stream_url,
+            "-vf",
+            f"select='gt(scene,{self._threshold})',scale={self._SCALE_WIDTH}:-1,showinfo",
+            "-vsync",
+            "vfr",
+            "-frames:v",
+            str(max_frames),
+            "-q:v",
+            "2",
             "-y",
             output_pattern,
         ]
@@ -139,9 +155,7 @@ class SceneFrameExtractor:
         except subprocess.TimeoutExpired:
             raise SceneFrameError("ffmpeg timed out during scene detection")
         except FileNotFoundError:
-            raise SceneFrameError(
-                "ffmpeg not found. Install it: https://ffmpeg.org/download.html"
-            )
+            raise SceneFrameError("ffmpeg not found. Install it: https://ffmpeg.org/download.html")
 
         # Parse timestamps from ffmpeg showinfo output
         timestamps = self._parse_showinfo_timestamps(result.stderr)
@@ -150,11 +164,13 @@ class SceneFrameExtractor:
         frames = []
         for i, path in enumerate(sorted(output_dir.glob("scene_*.jpg"))):
             timestamp = timestamps[i] if i < len(timestamps) else 0.0
-            frames.append({
-                "path": path,
-                "timestamp": timestamp,
-                "index": i,
-            })
+            frames.append(
+                {
+                    "path": path,
+                    "timestamp": timestamp,
+                    "index": i,
+                }
+            )
 
         # Save timestamp metadata for cache
         self._save_metadata(output_dir, frames)
@@ -193,11 +209,13 @@ class SceneFrameExtractor:
             for entry in data:
                 path = output_dir / entry["filename"]
                 if path.exists():
-                    frames.append({
-                        "path": path,
-                        "timestamp": entry["timestamp"],
-                        "index": entry["index"],
-                    })
+                    frames.append(
+                        {
+                            "path": path,
+                            "timestamp": entry["timestamp"],
+                            "index": entry["index"],
+                        }
+                    )
             return frames if frames else None
         except Exception:
             return None
