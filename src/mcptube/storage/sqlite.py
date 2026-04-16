@@ -27,7 +27,14 @@ class SQLiteVideoRepository(VideoRepository):
             chapters      TEXT DEFAULT '[]',
             transcript    TEXT DEFAULT '[]',
             tags          TEXT DEFAULT '[]',
-            added_at      TEXT NOT NULL
+            added_at      TEXT NOT NULL,
+            format        TEXT DEFAULT '',
+            file_size     INTEGER DEFAULT 0,
+            width        INTEGER DEFAULT 0,
+            height       INTEGER DEFAULT 0,
+            vcodec       TEXT DEFAULT '',
+            acodec       TEXT DEFAULT '',
+            frame_stats  TEXT DEFAULT '{}'
         )
     """
 
@@ -53,8 +60,9 @@ class SQLiteVideoRepository(VideoRepository):
         sql = """
             INSERT INTO videos (
                 video_id, title, description, channel, duration,
-                thumbnail_url, chapters, transcript, tags, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thumbnail_url, chapters, transcript, tags, added_at,
+                format, file_size, width, height, vcodec, acodec, frame_stats
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(video_id) DO UPDATE SET
                 title = excluded.title,
                 description = excluded.description,
@@ -63,20 +71,37 @@ class SQLiteVideoRepository(VideoRepository):
                 thumbnail_url = excluded.thumbnail_url,
                 chapters = excluded.chapters,
                 transcript = excluded.transcript,
-                tags = excluded.tags
+                tags = excluded.tags,
+                format = excluded.format,
+                file_size = excluded.file_size,
+                width = excluded.width,
+                height = excluded.height,
+                vcodec = excluded.vcodec,
+                acodec = excluded.acodec,
+                frame_stats = excluded.frame_stats
         """
-        self._conn.execute(sql, (
-            video.video_id,
-            video.title,
-            video.description,
-            video.channel,
-            video.duration,
-            video.thumbnail_url,
-            json.dumps([ch.model_dump() for ch in video.chapters]),
-            json.dumps([seg.model_dump() for seg in video.transcript]),
-            json.dumps(video.tags),
-            video.added_at.isoformat(),
-        ))
+        self._conn.execute(
+            sql,
+            (
+                video.video_id,
+                video.title,
+                video.description,
+                video.channel,
+                video.duration,
+                video.thumbnail_url,
+                json.dumps([ch.model_dump() for ch in video.chapters]),
+                json.dumps([seg.model_dump() for seg in video.transcript]),
+                json.dumps(video.tags),
+                video.added_at.isoformat(),
+                video.format,
+                video.file_size,
+                video.width,
+                video.height,
+                video.vcodec,
+                video.acodec,
+                json.dumps(video.frame_stats),
+            ),
+        )
         self._conn.commit()
 
     def get(self, video_id: str) -> Video | None:
@@ -131,4 +156,11 @@ class SQLiteVideoRepository(VideoRepository):
             transcript=transcript,
             tags=json.loads(row["tags"]),
             added_at=row["added_at"],
+            format=row["format"],
+            file_size=row["file_size"],
+            width=row["width"],
+            height=row["height"],
+            vcodec=row["vcodec"],
+            acodec=row["acodec"],
+            frame_stats=json.loads(row["frame_stats"]),
         )

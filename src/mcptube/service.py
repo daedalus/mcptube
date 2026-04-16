@@ -136,6 +136,7 @@ class McpTubeService:
                 logger.warning("Wiki ingest failed: %s", e)
 
         video.frame_stats = frame_stats
+        self._repo.save(video)
         logger.info("Video added: %s — %s", video.video_id, video.title)
         return video
 
@@ -231,6 +232,7 @@ class McpTubeService:
                 logger.warning("Wiki ingest failed: %s", e)
 
         video.frame_stats = frame_stats
+        self._repo.save(video)
         logger.info("Video re-processed: %s — %s", video.video_id, video.title)
         return video
 
