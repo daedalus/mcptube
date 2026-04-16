@@ -15,7 +15,7 @@ from mcptube.wiki.engine import WikiEngine
 from mcptube.wiki.models import WikiPageBase, WikiPageType
 
 from mcptube.ingestion.scene_frames import SceneFrameError, SceneFrameExtractor
-from mcptube.ingestion.vision import VisionDescriber
+from mcptube.ingestion.vision import FrameCacheDB, VisionDescriber
 from mcptube.wiki.models import VideoPage
 
 
@@ -60,7 +60,8 @@ class McpTubeService:
         self._report_builder: ReportBuilder | None = None
         self._discovery: VideoDiscovery | None = None
         self._scene_extractor = scene_extractor or SceneFrameExtractor()
-        self._vision_describer = vision_describer or VisionDescriber(self._llm)
+        frame_cache = FrameCacheDB() if vision_describer is None else vision_describer._cache
+        self._vision_describer = vision_describer or VisionDescriber(self._llm, frame_cache)
 
         if self._llm.available:
             self._discovery = VideoDiscovery(llm=self._llm)

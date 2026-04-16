@@ -1,15 +1,74 @@
 """Vision model integration — describe video frames using multimodal LLM."""
 
 import base64
+import hashlib
+import json
 import logging
+import sqlite3
 from pathlib import Path
 
 import litellm
 
+from mcptube.config import settings
 from mcptube.llm import LLMClient, LLMError
 from mcptube.wiki.models import FrameDescription
 
 logger = logging.getLogger(__name__)
+
+_FRAME_CACHE_DB = "frame_cache.db"
+
+
+class FrameCacheDB:
+    """Persistent SQLite cache for frame descriptions indexed by image hash."""
+
+    def __init__(self, db_path: Path | None = None) -> None:
+        self.db_path = db_path or settings.data_dir / _FRAME_CACHE_DB
+        self._conn = sqlite3.connect(str(self.db_path))
+        self._conn.row_factory = sqlite3.Row
+        self._initialize()
+
+    def _initialize(self) -> None:
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS frame_descriptions (
+                content_hash TEXT PRIMARY KEY,
+                description TEXT NOT NULL
+            )
+        """)
+        self._conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_content_hash ON frame_descriptions(content_hash)
+        """)
+        self._conn.commit()
+
+    def compute_hash(self, image_path: Path) -> str:
+        """Compute SHA256 hash of image file content."""
+        h = hashlib.sha256()
+        h.update(image_path.read_bytes())
+        return h.hexdigest()
+
+    def get(self, image_path: Path) -> str | None:
+        """Get cached description for image, or None if not cached."""
+        content_hash = self.compute_hash(image_path)
+        cursor = self._conn.execute(
+            "SELECT description FROM frame_descriptions WHERE content_hash = ?",
+            (content_hash,),
+        )
+        row = cursor.fetchone()
+        return row["description"] if row else None
+
+    def put(self, image_path: Path, description: str) -> None:
+        """Store image hash → description mapping."""
+        content_hash = self.compute_hash(image_path)
+        try:
+            self._conn.execute(
+                "INSERT INTO frame_descriptions (content_hash, description) VALUES (?, ?)",
+                (content_hash, description),
+            )
+            self._conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+
+    def close(self) -> None:
+        self._conn.close()
 
 
 class VisionDescriber:
@@ -17,6 +76,7 @@ class VisionDescriber:
 
     Takes extracted scene-change frames and produces text descriptions
     via a vision-capable model (GPT-4o, Claude, Gemini).
+    Uses ContentHashDB cache to avoid redundant LLM calls for identical frames.
     """
 
     _VISION_MODELS = {
@@ -44,9 +104,10 @@ Example: ["Frame shows a title slide reading 'Introduction to LLMs'", "Presenter
 
 Return ONLY the JSON array. No markdown, no explanation."""
 
-    def __init__(self, llm: LLMClient) -> None:
+    def __init__(self, llm: LLMClient, cache: FrameCacheDB | None = None) -> None:
         self._llm = llm
         self._model = self._detect_vision_model()
+        self._cache = cache
 
     def describe_frames(self, frames: list[dict]) -> list[FrameDescription]:
         """Describe a list of scene-change frames using vision model.
@@ -79,90 +140,140 @@ Return ONLY the JSON array. No markdown, no explanation."""
         for frame in frames:
             try:
                 desc = self._describe_single_frame(frame["path"])
-                descriptions.append(FrameDescription(
-                    filename=frame["path"].name,
-                    timestamp=frame["timestamp"],
-                    description=desc,
-                ))
+                descriptions.append(
+                    FrameDescription(
+                        filename=frame["path"].name,
+                        timestamp=frame["timestamp"],
+                        description=desc,
+                    )
+                )
             except LLMError as e:
                 logger.warning("Failed to describe frame %s: %s", frame["path"].name, e)
-                descriptions.append(FrameDescription(
-                    filename=frame["path"].name,
-                    timestamp=frame["timestamp"],
-                    description="(description unavailable)",
-                ))
+                descriptions.append(
+                    FrameDescription(
+                        filename=frame["path"].name,
+                        timestamp=frame["timestamp"],
+                        description="(description unavailable)",
+                    )
+                )
         return descriptions
 
     def _describe_single_frame(self, image_path: Path) -> str:
-        """Describe a single frame using vision model."""
+        """Describe a single frame using vision model. Uses cache to avoid redundant LLM calls."""
+        # Check cache first
+        if self._cache:
+            cached_desc = self._cache.get(image_path)
+            if cached_desc is not None:
+                logger.debug("Frame cache hit: %s", image_path.name)
+                return cached_desc
+
         b64 = base64.b64encode(image_path.read_bytes()).decode()
         mime = "image/jpeg"
 
         try:
             response = litellm.completion(
                 model=self._model,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": self._FRAME_PROMPT},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{mime};base64,{b64}",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": self._FRAME_PROMPT},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:{mime};base64,{b64}",
+                                },
                             },
-                        },
-                    ],
-                }],
+                        ],
+                    }
+                ],
                 temperature=0.2,
                 max_tokens=256,
             )
-            return response.choices[0].message.content.strip()
+            description = response.choices[0].message.content.strip()
+
+            # Store in cache
+            if self._cache:
+                self._cache.put(image_path, description)
+
+            return description
         except Exception as e:
             raise LLMError(f"Vision model failed: {e}") from e
 
     def _describe_batch(self, frames: list[dict]) -> list[FrameDescription]:
-        """Describe multiple frames in a single vision call."""
+        """Describe multiple frames in a single vision call. Checks cache first."""
         import json
 
-        # Build content array with all images
-        content = [{"type": "text", "text": self._BATCH_PROMPT}]
+        # Check cache and separate cached vs uncached frames
+        cached_results = {}
+        uncached_frames = []
         for frame in frames:
-            b64 = base64.b64encode(frame["path"].read_bytes()).decode()
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{b64}",
-                },
-            })
+            if self._cache:
+                cached_desc = self._cache.get(frame["path"])
+                if cached_desc is not None:
+                    cached_results[frame["path"]] = cached_desc
+                else:
+                    uncached_frames.append(frame)
+            else:
+                uncached_frames.append(frame)
 
-        try:
-            response = litellm.completion(
-                model=self._model,
-                messages=[{"role": "user", "content": content}],
-                temperature=0.2,
-                max_tokens=2048,
-            )
-            raw = response.choices[0].message.content.strip()
+        # If all frames cached, return cached results
+        if uncached_frames:
+            # Build content array with uncached images only
+            content = [{"type": "text", "text": self._BATCH_PROMPT}]
+            for frame in uncached_frames:
+                b64 = base64.b64encode(frame["path"].read_bytes()).decode()
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{b64}",
+                        },
+                    }
+                )
 
-            # Parse JSON array
-            text = raw
-            if text.startswith("```"):
-                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-            descs = json.loads(text)
+            try:
+                response = litellm.completion(
+                    model=self._model,
+                    messages=[{"role": "user", "content": content}],
+                    temperature=0.2,
+                    max_tokens=2048,
+                )
+                raw = response.choices[0].message.content.strip()
 
-            descriptions = []
-            for i, frame in enumerate(frames):
-                desc = descs[i] if i < len(descs) else "(description unavailable)"
-                descriptions.append(FrameDescription(
+                # Parse JSON array
+                text = raw
+                if text.startswith("```"):
+                    text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                descs = json.loads(text)
+
+                # Store uncached results in cache
+                for i, frame in enumerate(uncached_frames):
+                    desc = descs[i] if i < len(descs) else "(description unavailable)"
+                    cached_results[frame["path"]] = desc
+                    if self._cache:
+                        self._cache.put(frame["path"], desc)
+
+            except Exception as e:
+                logger.warning("Batch vision failed, falling back to individual: %s", e)
+                # Fall back to individual for uncached
+                for frame in uncached_frames:
+                    cached_results[frame["path"]] = None
+
+        # Build final descriptions in original order
+        descriptions = []
+        for frame in frames:
+            desc = cached_results.get(frame["path"])
+            if desc is None:
+                desc = "(description unavailable)"
+            descriptions.append(
+                FrameDescription(
                     filename=frame["path"].name,
                     timestamp=frame["timestamp"],
                     description=desc,
-                ))
-            return descriptions
-
-        except Exception as e:
-            logger.warning("Batch vision failed, falling back to individual: %s", e)
-            return self._describe_individually(frames)
+                )
+            )
+        return descriptions
 
     def _detect_vision_model(self) -> str:
         """Auto-detect the best available vision-capable model."""
