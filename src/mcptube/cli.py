@@ -1,6 +1,7 @@
 """CLI interface — thin wrapper over McpTubeService and FastMCP server."""
 
 import logging
+
 import typer
 from pathlib import Path
 
@@ -71,10 +72,16 @@ def global_options(
     _show_frame_stats = show_frame_stats
     _custom_model = model
     _custom_format = format
-    if _debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-    elif _verbose:
-        logging.getLogger().setLevel(logging.INFO)
+    import sys
+
+    for h in logging.root.handlers[:]:
+        logging.root.removeHandler(h)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(name)s %(levelname)s: %(message)s"))
+    logging.root.addHandler(handler)
+    log_level = logging.DEBUG if _debug else logging.INFO
+    logging.root.setLevel(log_level)
+    logging.getLogger("mcptube").setLevel(log_level)
     if cookies is not None:
         settings.cookies_file = cookies
     if js_runtimes is not None:
