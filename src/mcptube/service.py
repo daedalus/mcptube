@@ -172,6 +172,67 @@ class McpTubeService:
 
         logger.info("Video removed: %s", video_id)
 
+    def reprocess_video(self, video_id: str, text_only: bool = False) -> Video:
+        """Re-process an existing video without removing it first.
+
+        Args:
+            video_id: The video ID to re-process.
+            text_only: Whether to skip vision frame analysis.
+
+        Returns:
+            The re-processed Video model.
+        """
+        if not self._repo.exists(video_id):
+            raise VideoNotFoundError(f"Video not found: {video_id}")
+
+        existing_video = self._repo.get(video_id)
+        url = existing_video.url
+
+        logger.info("Re-processing video: %s", video_id)
+
+        # Clean existing wiki data (don't delete from repo)
+        if self._wiki:
+            self._wiki.remove_video(video_id)
+
+        # Re-extract to get fresh metadata
+        video = self._extractor.extract(url)
+        self._repo.save(video)
+
+        # Auto-classify if LLM is available
+        if self._llm and self._llm.available:
+            try:
+                video.tags = self._llm.classify(video.title, video.description, video.channel)
+                self._repo.save(video)
+                logger.info("Auto-classified: %s", video.tags)
+            except LLMError as e:
+                logger.warning("Auto-classification failed: %s", e)
+
+        # Build wiki pages
+        frame_stats = {"ffmpeg_extracted": 0, "llm_processed": 0}
+        if self._wiki and self._llm and self._llm.available:
+            try:
+                frame_descriptions = None
+                if not text_only:
+                    try:
+                        frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                        frame_stats["ffmpeg_extracted"] = len(frames)
+                        frame_descriptions = self._vision_describer.describe_frames(frames)
+                        frame_stats["llm_processed"] = len(frame_descriptions)
+                        logger.info("Vision: described %d frames", len(frame_descriptions))
+                    except (SceneFrameError, LLMError) as e:
+                        logger.warning("Vision pipeline failed, continuing text-only: %s", e)
+
+                stats = self._wiki.ingest_video(
+                    video, frame_descriptions=frame_descriptions, text_only=text_only
+                )
+                logger.info("Wiki ingest: %s", stats)
+            except LLMError as e:
+                logger.warning("Wiki ingest failed: %s", e)
+
+        video.frame_stats = frame_stats
+        logger.info("Video re-processed: %s — %s", video.video_id, video.title)
+        return video
+
     # --- Wiki operations ---
 
     def wiki_search(self, query: str, limit: int = 10) -> list[WikiPageBase]:

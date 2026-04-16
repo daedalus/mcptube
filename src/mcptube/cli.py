@@ -134,9 +134,26 @@ def _resolve_or_exit(svc: McpTubeService, query: str):
 def add(
     url: str = typer.Argument(..., help="YouTube video URL to ingest."),
     text_only: bool = typer.Option(False, "--text-only", help="Skip vision frame analysis."),
+    reprocess: bool = typer.Option(
+        False, "--reprocess", help="Re-process an existing video without removing it first."
+    ),
 ) -> None:
     """Ingest a YouTube video into the library and build wiki pages."""
     svc = _get_service()
+    video_id = svc._extractor.parse_video_id(url)
+
+    if reprocess and svc._repo.exists(video_id):
+        typer.echo(f"🔄 Re-processing: {url}")
+        try:
+            video = svc._repo.get(video_id)
+            reprocessed_video = svc.reprocess_video(video_id, text_only=text_only)
+            typer.echo(f"✅ Re-processed: {reprocessed_video.title}")
+            typer.echo(f"   Segments: {len(reprocessed_video.transcript)}")
+        except Exception as e:
+            typer.echo(f"❌ Re-processing failed: {e}", err=True)
+            raise typer.Exit(code=1)
+        return
+
     try:
         video = svc.add_video(url, text_only=text_only)
         typer.echo(f"✅ Added: {video.title}")
