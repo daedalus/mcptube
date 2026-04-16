@@ -186,6 +186,7 @@ class McpTubeService:
             raise VideoNotFoundError(f"Video not found: {video_id}")
 
         existing_video = self._repo.get(video_id)
+        url = existing_video.url
 
         logger.info("Re-processing video: %s", video_id)
 
@@ -193,8 +194,10 @@ class McpTubeService:
         if self._wiki:
             self._wiki.remove_video(video_id)
 
-        # Re-use existing video data (don't re-extract from YouTube)
-        video = existing_video
+        # Re-extract to get fresh metadata (file_size, format, etc.)
+        logger.debug("Re-extracting video metadata from YouTube")
+        video = self._extractor.extract(url)
+        self._repo.save(video)
 
         # Auto-classify if LLM is available
         if self._llm and self._llm.available:

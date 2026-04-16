@@ -145,7 +145,6 @@ def add(
     if reprocess and svc._repo.exists(video_id):
         typer.echo(f"🔄 Re-processing: {url}")
         try:
-            video = svc._repo.get(video_id)
             reprocessed_video = svc.reprocess_video(video_id, text_only=text_only)
             typer.echo(f"✅ Re-processed: {reprocessed_video.title}")
             typer.echo(f"   Segments: {len(reprocessed_video.transcript)}")
