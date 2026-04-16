@@ -29,11 +29,11 @@ class LLMClient:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
-        "OPENROUTER_API_KEY": "openrouter/openai/gpt-4o-mini",
+        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
     }
 
     _FALLBACK_MODELS = [
-        "openrouter/google/gemini-2.0-flash",
+        "openrouter/qwen/qwen3-8b-instruct",
         "openrouter/meta-llama/llama-3.1-8b-instruct",
     ]
 
@@ -133,6 +133,9 @@ class LLMClient:
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
                     max_tokens=max_tokens,
+                    extra_headers={
+                        "X-Title": "mcptube",
+                    },
                 )
                 content = response.choices[0].message.content.strip()
                 logger.debug(
