@@ -56,6 +56,14 @@ def global_options(
     no_proxy: bool = typer.Option(
         False, "--no-proxy", help="Ignore proxy environment variables for yt-dlp."
     ),
+    proxy: str | None = typer.Option(
+        None, "--proxy", help="Proxy URL for yt-dlp (e.g., 'http://proxy.example.com:8080')."
+    ),
+    cookies_from_browser: str | None = typer.Option(
+        None,
+        "--cookies-from-browser",
+        help="Browser to get cookies from (e.g., 'chrome', 'firefox').",
+    ),
     show_frame_stats: bool = typer.Option(
         False, "--show-frame-stats", help="Print statistics about frame extraction."
     ),
@@ -95,6 +103,10 @@ def global_options(
         settings.js_runtimes = js_runtimes
     if no_proxy:
         settings.no_proxy = True
+    if proxy is not None:
+        settings.proxy = proxy
+    if cookies_from_browser is not None:
+        settings.cookies_from_browser = cookies_from_browser
     if format is not None:
         settings.format = format
 
@@ -105,6 +117,8 @@ def global_options(
         print(f"DEBUG: cookies={settings.cookies_file}", file=sys.stderr)
         print(f"DEBUG: js_runtimes={settings.js_runtimes}", file=sys.stderr)
         print(f"DEBUG: no_proxy={settings.no_proxy}", file=sys.stderr)
+        print(f"DEBUG: proxy={settings.proxy}", file=sys.stderr)
+        print(f"DEBUG: cookies_from_browser={settings.cookies_from_browser}", file=sys.stderr)
         print(f"DEBUG: model={_custom_model}", file=sys.stderr)
         print(f"DEBUG: format={_custom_format}", file=sys.stderr)
 

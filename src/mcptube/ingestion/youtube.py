@@ -131,6 +131,12 @@ class YouTubeExtractor:
         if settings.no_proxy:
             ydl_opts["proxy"] = ""
             logger.info("Proxy disabled for yt-dlp")
+        elif settings.proxy:
+            ydl_opts["proxy"] = settings.proxy
+            logger.info("Using proxy: %s", settings.proxy)
+        if settings.cookies_from_browser:
+            ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
+            logger.info("Using cookies from browser: %s", settings.cookies_from_browser)
         if settings.format:
             ydl_opts["format"] = settings.format
             logger.info("Using video format: %s", settings.format)

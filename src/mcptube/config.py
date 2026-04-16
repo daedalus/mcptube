@@ -45,6 +45,14 @@ class Settings(BaseSettings):
         default=False,
         description="Ignore proxy environment variables for yt-dlp.",
     )
+    proxy: str | None = Field(
+        default=None,
+        description="Proxy URL to use for yt-dlp (e.g., 'http://proxy.example.com:8080').",
+    )
+    cookies_from_browser: str | None = Field(
+        default=None,
+        description="Browser to get cookies from for yt-dlp (e.g., 'chrome', 'firefox').",
+    )
     format: str | None = Field(
         default=None,
         description="Preferred video format (e.g., 'best', '1080p', '720p', '480p', 'worst').",

@@ -103,8 +103,14 @@ class SceneFrameExtractor:
         if settings.no_proxy:
             ydl_opts["proxy"] = ""
             logger.debug("Proxy disabled for scene frames")
-        else:
-            logger.debug("Proxy NOT disabled for scene frames")
+        elif settings.proxy:
+            ydl_opts["proxy"] = settings.proxy
+            logger.debug("Using proxy for scene frames: %s", settings.proxy)
+        if settings.cookies_from_browser:
+            ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
+            logger.debug(
+                "Using cookies from browser for scene frames: %s", settings.cookies_from_browser
+            )
         logger.info("scene_frames ydl_opts: %s", ydl_opts)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

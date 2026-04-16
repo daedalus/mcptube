@@ -29,7 +29,7 @@ class LLMClient:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
-        "OPENROUTER_API_KEY": "openrouter/google/gemini-2.0-flash",
+        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
     }
 
     _FALLBACK_MODELS = [
