@@ -115,18 +115,28 @@ class McpTubeService:
         # Build wiki pages
         # Vision pipeline + wiki ingest
         frame_stats = {"ffmpeg_extracted": 0, "llm_processed": 0}
+        # Scene frames extraction uses ffprobe, doesn't need LLM
+        frames = []
+        if not text_only:
+            try:
+                frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                frame_stats["ffmpeg_extracted"] = len(frames)
+                logger.info("Scene frames: extracted %d frames", len(frames))
+            except SceneFrameError as e:
+                logger.warning("Scene frame extraction failed: %s", e)
+
+        # LLM processing (wiki ingest) needs LLM available
         if self._wiki and self._llm and self._llm.available:
             try:
                 frame_descriptions = None
-                if not text_only:
+                # Only describe frames if we extracted frames AND LLM is available
+                if frame_stats["ffmpeg_extracted"] > 0:
                     try:
-                        frames = self._scene_extractor.extract_scene_frames(video.video_id)
-                        frame_stats["ffmpeg_extracted"] = len(frames)
                         frame_descriptions = self._vision_describer.describe_frames(frames)
                         frame_stats["llm_processed"] = len(frame_descriptions)
                         logger.info("Vision: described %d frames", len(frame_descriptions))
-                    except (SceneFrameError, LLMError) as e:
-                        logger.warning("Vision pipeline failed, continuing text-only: %s", e)
+                    except LLMError as e:
+                        logger.warning("Frame description failed: %s", e)
 
                 stats = self._wiki.ingest_video(
                     video, frame_descriptions=frame_descriptions, text_only=text_only
@@ -211,18 +221,28 @@ class McpTubeService:
 
         # Build wiki pages
         frame_stats = {"ffmpeg_extracted": 0, "llm_processed": 0}
+        # Scene frames extraction uses ffprobe, doesn't need LLM
+        frames = []
+        if not text_only:
+            try:
+                frames = self._scene_extractor.extract_scene_frames(video.video_id)
+                frame_stats["ffmpeg_extracted"] = len(frames)
+                logger.info("Scene frames: extracted %d frames", len(frames))
+            except SceneFrameError as e:
+                logger.warning("Scene frame extraction failed: %s", e)
+
+        # LLM processing (wiki ingest) needs LLM available
         if self._wiki and self._llm and self._llm.available:
             try:
                 frame_descriptions = None
-                if not text_only:
+                # Only describe frames if we extracted frames AND LLM is available
+                if frame_stats["ffmpeg_extracted"] > 0:
                     try:
-                        frames = self._scene_extractor.extract_scene_frames(video.video_id)
-                        frame_stats["ffmpeg_extracted"] = len(frames)
                         frame_descriptions = self._vision_describer.describe_frames(frames)
                         frame_stats["llm_processed"] = len(frame_descriptions)
                         logger.info("Vision: described %d frames", len(frame_descriptions))
-                    except (SceneFrameError, LLMError) as e:
-                        logger.warning("Vision pipeline failed, continuing text-only: %s", e)
+                    except LLMError as e:
+                        logger.warning("Frame description failed: %s", e)
 
                 stats = self._wiki.ingest_video(
                     video, frame_descriptions=frame_descriptions, text_only=text_only

@@ -93,12 +93,19 @@ class SceneFrameExtractor:
         if cookie_file:
             ydl_opts["cookiefile"] = str(cookie_file)
             logger.debug("Using cookies for scene frames: %s", cookie_file)
+        else:
+            logger.warning("NO COOKIE FILE FOUND for scene frames!")
         if settings.js_runtimes:
             ydl_opts["js_runtimes"] = {settings.js_runtimes: {}}
             logger.debug("Using JS runtime for scene frames: %s", settings.js_runtimes)
+        else:
+            logger.warning("NO JS_RUNTIMES for scene frames!")
         if settings.no_proxy:
             ydl_opts["proxy"] = ""
             logger.debug("Proxy disabled for scene frames")
+        else:
+            logger.debug("Proxy NOT disabled for scene frames")
+        logger.info("scene_frames ydl_opts: %s", ydl_opts)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
