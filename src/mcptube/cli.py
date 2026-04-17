@@ -118,11 +118,20 @@ def global_options(
         settings.js_runtimes = js_runtimes
     if no_proxy:
         settings.no_proxy = True
+        import os
+
+        os.environ.pop("HTTP_PROXY", None)
+        os.environ.pop("HTTPS_PROXY", None)
+        os.environ.pop("http_proxy", None)
+        os.environ.pop("https_proxy", None)
     if proxy is not None:
         settings.proxy = proxy
-        import litellm
+        import os
 
-        litellm.proxy = proxy
+        os.environ["HTTP_PROXY"] = proxy
+        os.environ["HTTPS_PROXY"] = proxy
+        os.environ["http_proxy"] = proxy
+        os.environ["https_proxy"] = proxy
     if cookies_from_browser is not None:
         settings.cookies_from_browser = cookies_from_browser
     if format is not None:
