@@ -168,6 +168,7 @@ class YouTubeExtractor:
         if settings.cookies_from_browser:
             ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
             logger.info("Using cookies from browser: %s", settings.cookies_from_browser)
+            print(f"🍪 Using fresh cookies from {settings.cookies_from_browser}")
         if settings.format:
             ydl_opts["format"] = settings.format
             logger.info("Using video format: %s", settings.format)
