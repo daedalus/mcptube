@@ -2,12 +2,17 @@
 
 import json
 import logging
+import random
+import time
 import re
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 
 import yt_dlp
+
+from mcptube.llm import get_llm
 
 from mcptube.models import Chapter, TranscriptSegment, Video
 from mcptube.storage.cache import SubtitleCacheDB
@@ -32,6 +37,25 @@ def _get_cookie_file() -> Path | None:
     return fallback if fallback.exists() else None
 
 
+def _translate_to_english(text: str, source_lang: str) -> str:
+    """Translate text to English using LLM if not already in English."""
+    if source_lang.startswith('en'):
+        return text
+    
+    try:
+        llm = get_llm()
+        prompt = f"""Translate the following text from {source_lang} to English. 
+        Only return the translated text, no explanations or additional formatting:
+
+        {text}"""
+        
+        response = llm.complete(prompt)
+        return str(response).strip()
+    except Exception as e:
+        logger.warning("Translation failed for %s: %s", source_lang, e)
+        return text  # Return original if translation fails
+
+
 class ExtractionError(Exception):
     """Raised when video extraction fails."""
 
@@ -51,6 +75,7 @@ class YouTubeExtractor:
     ]
 
     _LANG_PREFERENCE = ("en", "en-orig", "en-US", "en-GB")
+    _FALLBACK_LANGS = ("es", "es-ES", "es-MX", "fr", "fr-FR", "de", "de-DE", "it", "it-IT", "pt", "pt-BR", "ru", "ja", "ko", "zh", "zh-CN", "zh-TW")
 
     def __init__(self, subtitle_cache: SubtitleCacheDB | None = None) -> None:
         self._subtitle_cache = subtitle_cache
@@ -224,16 +249,21 @@ class YouTubeExtractor:
         return result
 
     def _extract_transcript(self, info: dict) -> list[TranscriptSegment]:
-        """Extract transcript segments, preferring manual over auto-generated."""
+        """Extract transcript segments, trying multiple languages and fallback options with translation."""
         subtitles = info.get("subtitles") or {}
         auto_captions = info.get("automatic_captions") or {}
 
-        sub_data = self._find_json3(subtitles) or self._find_json3(auto_captions)
+        # Try manual subtitles first with language fallback
+        sub_data, sub_lang = self._find_json3_with_lang(subtitles)
         if not sub_data:
-            logger.warning("No English transcript available for: %s", info.get("id"))
+            # Try automatic captions with language fallback
+            sub_data, sub_lang = self._find_json3_with_lang(auto_captions)
+         
+        if not sub_data:
+            logger.warning("No transcript available in any language for: %s", info.get("id"))
             return []
 
-        return self._parse_json3(sub_data)
+        return self._parse_json3(sub_data, sub_lang)
 
     def _get_cached_transcript(self, video_id: str) -> list[TranscriptSegment] | None:
         """Get cached transcript for video ID."""
@@ -256,22 +286,39 @@ class YouTubeExtractor:
         except Exception:
             pass
 
-    def _find_json3(self, subs: dict) -> dict | None:
-        """Find and download json3 subtitle data for the best English variant."""
-        # Try preferred language codes first
+    def _find_json3_with_lang(self, subs: dict) -> tuple[dict | None, str]:
+        """Find and download json3 subtitle data, returning both data and language code.
+        Tries English first, then other languages with translation fallback.
+        """
+        # Try preferred language codes first (English variants)
         for lang in self._LANG_PREFERENCE:
             data = self._get_json3_for_lang(subs, lang)
             if data:
-                return data
+                return data, lang
 
         # Fallback: any en-* variant
         for lang in subs:
             if lang.startswith("en"):
                 data = self._get_json3_for_lang(subs, lang)
                 if data:
-                    return data
+                    return data, lang
 
-        return None
+        # Try other languages if English not available
+        for lang in self._FALLBACK_LANGS:
+            data = self._get_json3_for_lang(subs, lang)
+            if data:
+                logger.info("Using %s subtitles as fallback", lang)
+                return data, lang
+
+        # Fallback: any other language variant
+        for lang in subs:
+            if not lang.startswith("en") and lang not in self._LANG_PREFERENCE:
+                data = self._get_json3_for_lang(subs, lang)
+                if data:
+                    logger.info("Using %s subtitles as fallback", lang)
+                    return data, lang
+
+        return None, "en"  # Default to English if nothing found
 
     def _get_json3_for_lang(self, subs: dict, lang: str) -> dict | None:
         """Download json3 data for a specific language code if available."""
@@ -284,15 +331,37 @@ class YouTubeExtractor:
         return None
 
     def _download_json(self, url: str) -> dict | None:
-        """Download and parse JSON from a URL."""
-        try:
-            with urlopen(url, timeout=30) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except Exception as e:
-            logger.warning("Failed to download subtitle data: %s", e)
-            return None
+        """Download and parse JSON from a URL with retry logic for rate limiting."""
+        max_retries = 3
+        base_delay = 1  # Start with 1 second delay
+        
+        for attempt in range(max_retries):
+            try:
+                # Create request with proper headers to avoid some blocking
+                req = Request(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
+                with urlopen(req, timeout=30) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except HTTPError as e:
+                if e.code == 429 and attempt < max_retries - 1:
+                    # Exponential backoff with jitter
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning("Rate limited (429) downloading subtitles, retrying in %.1f seconds... (attempt %d/%d)", 
+                                 delay, attempt + 1, max_retries)
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.warning("Failed to download subtitle data (HTTP %d): %s", e.code, e.reason)
+                    return None
+            except Exception as e:
+                logger.warning("Failed to download subtitle data: %s", e)
+                return None
+        
+        logger.warning("Failed to download subtitle data after %d attempts due to rate limiting", max_retries)
+        return None
 
-    def _parse_json3(self, data: dict) -> list[TranscriptSegment]:
+    def _parse_json3(self, data: dict, language: str = "en") -> list[TranscriptSegment]:
         """Parse YouTube json3 subtitle format into TranscriptSegment list.
 
         YouTube json3 structure:
@@ -307,6 +376,10 @@ class YouTubeExtractor:
             text = "".join(s.get("utf8", "") for s in segs).strip()
             if not text or text == "\n":
                 continue
+
+            # Translate to English if needed
+            if not language.startswith('en'):
+                text = _translate_to_english(text, language)
 
             start_ms = event.get("tStartMs", 0)
             duration_ms = event.get("dDurationMs", 0)

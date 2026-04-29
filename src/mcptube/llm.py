@@ -203,3 +203,27 @@ class LLMClient:
         except json.JSONDecodeError:
             pass
         raise LLMError(f"Failed to parse tags from LLM response: {response[:100]}")
+
+    def complete(self, prompt: str, max_tokens: int = 4096) -> str:
+        """Complete a prompt using the LLM.
+        
+        Args:
+            prompt: The prompt to complete.
+            max_tokens: Maximum tokens to generate.
+            
+        Returns:
+            The completed text.
+        """
+        return self._complete(prompt, max_tokens)
+
+
+# Global LLM client instance for convenience
+_llm_client = None
+
+
+def get_llm() -> LLMClient:
+    """Get or create a global LLM client instance."""
+    global _llm_client
+    if _llm_client is None:
+        _llm_client = LLMClient()
+    return _llm_client
