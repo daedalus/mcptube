@@ -12,7 +12,11 @@ from mcptube.ingestion.frames import FrameExtractionError, FrameExtractor
 
 class TestFrameExtractor:
     @patch("mcptube.ingestion.frames.subprocess.run")
-    @patch.object(FrameExtractor, "_resolve_stream_url", return_value="https://stream.example.com/video.mp4")
+    @patch.object(
+        FrameExtractor,
+        "_resolve_stream_url",
+        return_value="https://stream.example.com/video.mp4",
+    )
     def test_extract_frame_calls_ffmpeg(self, mock_resolve, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=0)
 
@@ -21,13 +25,17 @@ class TestFrameExtractor:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(b"\xff\xd8fake-jpeg")
 
-        with patch.object(FrameExtractor, "_cache_path", return_value=tmp_path / "test.jpg"):
+        with patch.object(
+            FrameExtractor, "_cache_path", return_value=tmp_path / "test.jpg"
+        ):
             # File doesn't exist at tmp_path, so ffmpeg should be called
             result_path = tmp_path / "test.jpg"
             mock_run.return_value = MagicMock(returncode=0)
 
             with patch.object(extractor, "_extract_with_ffmpeg") as mock_ffmpeg:
-                mock_ffmpeg.side_effect = lambda url, ts, out: out.write_bytes(b"\xff\xd8fake")
+                mock_ffmpeg.side_effect = lambda url, ts, out: out.write_bytes(
+                    b"\xff\xd8fake"
+                )
                 path = extractor.extract_frame("abc123", 10.0)
 
             mock_resolve.assert_called_once_with("abc123")
@@ -46,7 +54,9 @@ class TestFrameExtractor:
         extractor = FrameExtractor()
         output = tmp_path / "out.jpg"
 
-        with patch("mcptube.ingestion.frames.subprocess.run", side_effect=FileNotFoundError):
+        with patch(
+            "mcptube.ingestion.frames.subprocess.run", side_effect=FileNotFoundError
+        ):
             with pytest.raises(FrameExtractionError, match="ffmpeg not found"):
                 extractor._extract_with_ffmpeg("https://stream.url", 10.0, output)
 
@@ -63,7 +73,10 @@ class TestFrameExtractor:
         extractor = FrameExtractor()
         output = tmp_path / "out.jpg"
 
-        with patch("mcptube.ingestion.frames.subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ffmpeg", timeout=30)):
+        with patch(
+            "mcptube.ingestion.frames.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="ffmpeg", timeout=30),
+        ):
             with pytest.raises(FrameExtractionError, match="timed out"):
                 extractor._extract_with_ffmpeg("https://stream.url", 10.0, output)
 
@@ -80,7 +93,9 @@ class TestFrameExtractor:
     @patch("mcptube.ingestion.frames.yt_dlp.YoutubeDL")
     def test_resolve_stream_url(self, mock_ydl_class):
         mock_ydl = MagicMock()
-        mock_ydl.extract_info.return_value = {"url": "https://stream.example.com/video.mp4"}
+        mock_ydl.extract_info.return_value = {
+            "url": "https://stream.example.com/video.mp4"
+        }
         mock_ydl_class.return_value.__enter__ = lambda s: mock_ydl
         mock_ydl_class.return_value.__exit__ = MagicMock(return_value=False)
 

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcptube": {
+      "command": "mcptube",
+      "env": {}
+    }
+  }
+}

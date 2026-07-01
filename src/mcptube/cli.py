@@ -47,7 +47,9 @@ _cleanup_if_successful = False
 @app.callback()
 def global_options(
     ctx: typer.Context,
-    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Enable verbose output."
+    ),
     debug: bool = typer.Option(False, "--debug", "-d", help="Enable debug mode."),
     cookies: Path | None = typer.Option(
         None, "--cookies", "-c", help="Path to cookies file for yt-dlp authentication."
@@ -59,7 +61,9 @@ def global_options(
         False, "--no-proxy", help="Ignore proxy environment variables for yt-dlp."
     ),
     proxy: str | None = typer.Option(
-        None, "--proxy", help="Proxy URL for yt-dlp (e.g., 'http://proxy.example.com:8080')."
+        None,
+        "--proxy",
+        help="Proxy URL for yt-dlp (e.g., 'http://proxy.example.com:8080').",
     ),
     cookies_from_browser: str | None = typer.Option(
         None,
@@ -69,7 +73,9 @@ def global_options(
     show_frame_stats: bool = typer.Option(
         False, "--show-frame-stats", help="Print statistics about frame extraction."
     ),
-    model: str | None = typer.Option(None, "--model", "-m", help="Override the LLM model to use."),
+    model: str | None = typer.Option(
+        None, "--model", "-m", help="Override the LLM model to use."
+    ),
     fallback: str | None = typer.Option(
         None,
         "--fallback",
@@ -145,7 +151,10 @@ def global_options(
         print(f"DEBUG: js_runtimes={settings.js_runtimes}", file=sys.stderr)
         print(f"DEBUG: no_proxy={settings.no_proxy}", file=sys.stderr)
         print(f"DEBUG: proxy={settings.proxy}", file=sys.stderr)
-        print(f"DEBUG: cookies_from_browser={settings.cookies_from_browser}", file=sys.stderr)
+        print(
+            f"DEBUG: cookies_from_browser={settings.cookies_from_browser}",
+            file=sys.stderr,
+        )
         print(f"DEBUG: model={_custom_model}", file=sys.stderr)
         print(f"DEBUG: format={_custom_format}", file=sys.stderr)
         print(f"DEBUG: cleanup_if_successful={_cleanup_if_successful}", file=sys.stderr)
@@ -188,9 +197,13 @@ def _resolve_or_exit(svc: McpTubeService, query: str):
 @app.command()
 def add(
     url: str = typer.Argument(..., help="YouTube video URL to ingest."),
-    text_only: bool = typer.Option(False, "--text-only", help="Skip vision frame analysis."),
+    text_only: bool = typer.Option(
+        False, "--text-only", help="Skip vision frame analysis."
+    ),
     reprocess: bool = typer.Option(
-        False, "--reprocess", help="Re-process an existing video without removing it first."
+        False,
+        "--reprocess",
+        help="Re-process an existing video without removing it first.",
     ),
     max_frames: int = typer.Option(
         50, "--max-frames", help="Maximum frames to extract for vision analysis."
@@ -225,9 +238,13 @@ def add(
                     if reprocessed_video.format:
                         stats_parts.append(reprocessed_video.format)
                     if reprocessed_video.file_size:
-                        stats_parts.append(f"{reprocessed_video.file_size / (1024 * 1024):.1f}MB")
+                        stats_parts.append(
+                            f"{reprocessed_video.file_size / (1024 * 1024):.1f}MB"
+                        )
                     if reprocessed_video.width and reprocessed_video.height:
-                        stats_parts.append(f"{reprocessed_video.width}x{reprocessed_video.height}")
+                        stats_parts.append(
+                            f"{reprocessed_video.width}x{reprocessed_video.height}"
+                        )
                     if reprocessed_video.vcodec:
                         stats_parts.append(f"v:{reprocessed_video.vcodec}")
                     if reprocessed_video.acodec:
@@ -291,11 +308,15 @@ def list_videos() -> None:
         return
     for i, v in enumerate(videos, 1):
         tags = f" [{', '.join(v.tags)}]" if v.tags else ""
-        typer.echo(f"  {i}. {v.video_id}  {v.duration:>6.0f}s  {v.channel:<20s}  {v.title}{tags}")
+        typer.echo(
+            f"  {i}. {v.video_id}  {v.duration:>6.0f}s  {v.channel:<20s}  {v.title}{tags}"
+        )
 
 
 @app.command()
-def info(query: str = typer.Argument(..., help="Video ID, index number, or search text.")) -> None:
+def info(
+    query: str = typer.Argument(..., help="Video ID, index number, or search text."),
+) -> None:
     """Show full details for a video."""
     svc = _get_service()
     video = _resolve_or_exit(svc, query)
@@ -359,7 +380,9 @@ def search(
 
 @app.command()
 def ask(
-    question: str = typer.Argument(..., help="Question to ask about your video library."),
+    question: str = typer.Argument(
+        ..., help="Question to ask about your video library."
+    ),
 ) -> None:
     """Ask a question — answered via agentic wiki retrieval."""
     svc = _get_service()
@@ -378,7 +401,9 @@ def ask(
 @app.command()
 def frame(
     query: str = typer.Argument(..., help="Video ID, index number, or search text."),
-    timestamp: float = typer.Argument(..., help="Timestamp in seconds to extract frame at."),
+    timestamp: float = typer.Argument(
+        ..., help="Timestamp in seconds to extract frame at."
+    ),
 ) -> None:
     """Extract a frame from a video at a specific timestamp."""
     svc = _get_service()
@@ -437,8 +462,12 @@ def report(
     focus: str | None = typer.Option(
         None, "--focus", "-f", help="Focus query to guide the report."
     ),
-    fmt: str = typer.Option("markdown", "--format", help="Output format: markdown or html."),
-    output: str | None = typer.Option(None, "--output", "-o", help="Save report to file."),
+    fmt: str = typer.Option(
+        "markdown", "--format", help="Output format: markdown or html."
+    ),
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="Save report to file."
+    ),
 ) -> None:
     """Generate an illustrated report for a single video."""
     svc = _get_service()
@@ -458,10 +487,18 @@ def report(
 
 @app.command()
 def report_query(
-    query: str = typer.Argument(..., help="Topic or question for the cross-video report."),
-    tags: list[str] | None = typer.Option(None, "--tag", "-t", help="Filter by tag (repeatable)."),
-    fmt: str = typer.Option("markdown", "--format", help="Output format: markdown or html."),
-    output: str | None = typer.Option(None, "--output", "-o", help="Save report to file."),
+    query: str = typer.Argument(
+        ..., help="Topic or question for the cross-video report."
+    ),
+    tags: list[str] | None = typer.Option(
+        None, "--tag", "-t", help="Filter by tag (repeatable)."
+    ),
+    fmt: str = typer.Option(
+        "markdown", "--format", help="Output format: markdown or html."
+    ),
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="Save report to file."
+    ),
 ) -> None:
     """Generate an illustrated report across matching library videos."""
     svc = _get_service()
@@ -509,8 +546,12 @@ def synthesize_cmd(
     videos: list[str] = typer.Option(
         ..., "--video", "-v", help="Video IDs to synthesize (repeatable)."
     ),
-    fmt: str = typer.Option("markdown", "--format", help="Output format: markdown or html."),
-    output: str | None = typer.Option(None, "--output", "-o", help="Save report to file."),
+    fmt: str = typer.Option(
+        "markdown", "--format", help="Output format: markdown or html."
+    ),
+    output: str | None = typer.Option(
+        None, "--output", "-o", help="Save report to file."
+    ),
 ) -> None:
     """Cross-reference themes across multiple library videos."""
     svc = _get_service()
@@ -546,7 +587,9 @@ def wiki_list(
         return
     for i, page in enumerate(pages, 1):
         tags = f" [{', '.join(page.tags)}]" if page.tags else ""
-        typer.echo(f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}")
+        typer.echo(
+            f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}"
+        )
 
 
 @wiki_app.command(name="show")
@@ -618,7 +661,9 @@ def wiki_search(
         return
     for i, page in enumerate(results, 1):
         tags = f" [{', '.join(page.tags)}]" if page.tags else ""
-        typer.echo(f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}")
+        typer.echo(
+            f"  {i}. [{page.page_type.value:<8s}] {page.title} ({page.slug}){tags}"
+        )
 
 
 @wiki_app.command(name="toc")
@@ -645,9 +690,15 @@ def wiki_history(
 
 @wiki_app.command(name="export")
 def wiki_export(
-    fmt: str = typer.Option("markdown", "--format", help="Export format: markdown, html, or pdf."),
-    output: str = typer.Option("wiki_export", "--output", "-o", help="Output file or directory."),
-    slug: str | None = typer.Option(None, "--page", "-p", help="Export a single page by slug."),
+    fmt: str = typer.Option(
+        "markdown", "--format", help="Export format: markdown, html, or pdf."
+    ),
+    output: str = typer.Option(
+        "wiki_export", "--output", "-o", help="Output file or directory."
+    ),
+    slug: str | None = typer.Option(
+        None, "--page", "-p", help="Export a single page by slug."
+    ),
 ) -> None:
     """Export wiki pages."""
     svc = _get_service()
@@ -733,7 +784,9 @@ def _export_html(pages, output_file: str) -> None:
             content += f"<p><strong>Tags:</strong> {', '.join(page.tags)}</p>"
 
         if isinstance(page, VideoPage):
-            content += f"<p><strong>Video:</strong> {page.video_id} by {page.channel}</p>"
+            content += (
+                f"<p><strong>Video:</strong> {page.video_id} by {page.channel}</p>"
+            )
             content += f"<p>{page.summary}</p>"
 
         elif isinstance(page, EntityPage):
@@ -778,10 +831,14 @@ def _export_html(pages, output_file: str) -> None:
 
 @app.command()
 def serve(
-    stdio: bool = typer.Option(False, "--stdio", help="Use stdio transport instead of HTTP."),
+    stdio: bool = typer.Option(
+        False, "--stdio", help="Use stdio transport instead of HTTP."
+    ),
     host: str = typer.Option(settings.host, "--host", help="Host to bind to."),
     port: int = typer.Option(settings.port, "--port", help="Port to bind to."),
-    reload: bool = typer.Option(False, "--reload", help="Enable hot-reload for development."),
+    reload: bool = typer.Option(
+        False, "--reload", help="Enable hot-reload for development."
+    ),
 ) -> None:
     """Start the mcptube MCP server."""
     from mcptube.server import mcp

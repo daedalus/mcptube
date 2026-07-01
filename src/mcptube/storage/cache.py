@@ -49,7 +49,12 @@ class BloomFilter:
     def save(self, path: str):
         with open(path, "w") as f:
             json.dump(
-                {"array_size": self.size, "hash_count": self.hash_count, "array": self.array}, f
+                {
+                    "array_size": self.size,
+                    "hash_count": self.hash_count,
+                    "array": self.array,
+                },
+                f,
             )
 
     @classmethod
@@ -199,7 +204,9 @@ class FrameCacheDB(SQLiteCache):
         result = super().get(content_hash)
         if result is not None:
             self._hits += 1
-            logger.debug("Frame cache hit: %s -> %s", image_path.name, content_hash[:16])
+            logger.debug(
+                "Frame cache hit: %s -> %s", image_path.name, content_hash[:16]
+            )
         else:
             self._misses += 1
             logger.debug("Frame cache miss: %s", image_path.name)

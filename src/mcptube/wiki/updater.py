@@ -92,7 +92,9 @@ Return ONLY the overview text. No markdown formatting, no headers."""
 
         logger.info(
             "Wiki update complete: %d created, %d updated, %d skipped",
-            stats["created"], stats["updated"], stats["skipped"],
+            stats["created"],
+            stats["updated"],
+            stats["skipped"],
         )
         return stats
 
@@ -119,12 +121,16 @@ Return ONLY the overview text. No markdown formatting, no headers."""
         # Check if this video already contributed
         existing_video_ids = {ref.video_id for ref in existing.video_references}
         new_refs = [
-            ref for ref in new_page.video_references
+            ref
+            for ref in new_page.video_references
             if ref.video_id not in existing_video_ids
         ]
 
         if not new_refs:
-            logger.info("Entity already has this video's references, skipping: %s", new_page.slug)
+            logger.info(
+                "Entity already has this video's references, skipping: %s",
+                new_page.slug,
+            )
             stats["skipped"] += 1
             return
 
@@ -163,12 +169,14 @@ Return ONLY the overview text. No markdown formatting, no headers."""
         # Check for duplicate contribution
         existing_video_ids = {c.video_id for c in existing.contributions}
         new_contribs = [
-            c for c in new_page.contributions
-            if c.video_id not in existing_video_ids
+            c for c in new_page.contributions if c.video_id not in existing_video_ids
         ]
 
         if not new_contribs:
-            logger.info("Topic already has this video's contribution, skipping: %s", new_page.slug)
+            logger.info(
+                "Topic already has this video's contribution, skipping: %s",
+                new_page.slug,
+            )
             stats["skipped"] += 1
             return
 
@@ -205,12 +213,14 @@ Return ONLY the overview text. No markdown formatting, no headers."""
         # Check for duplicate contribution
         existing_video_ids = {c.video_id for c in existing.contributions}
         new_contribs = [
-            c for c in new_page.contributions
-            if c.video_id not in existing_video_ids
+            c for c in new_page.contributions if c.video_id not in existing_video_ids
         ]
 
         if not new_contribs:
-            logger.info("Concept already has this video's contribution, skipping: %s", new_page.slug)
+            logger.info(
+                "Concept already has this video's contribution, skipping: %s",
+                new_page.slug,
+            )
             stats["skipped"] += 1
             return
 

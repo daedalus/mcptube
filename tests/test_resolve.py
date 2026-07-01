@@ -30,7 +30,9 @@ class TestResolveVideo:
         sqlite_repo.save(v2)
         sqlite_repo.save(v3)
 
-    def test_resolve_by_exact_id(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_by_exact_id(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         video = service.resolve_video("dQw4w9WgXcQ")
         assert video.video_id == "dQw4w9WgXcQ"
@@ -40,27 +42,37 @@ class TestResolveVideo:
         video = service.resolve_video("1")
         assert video is not None
 
-    def test_resolve_by_index_out_of_range(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_by_index_out_of_range(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         with pytest.raises(VideoNotFoundError, match="out of range"):
             service.resolve_video("99")
 
-    def test_resolve_by_substring_title(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_by_substring_title(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         video = service.resolve_video("Cooking")
         assert video.video_id == "xyz98765432"
 
-    def test_resolve_by_substring_channel(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_by_substring_channel(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         video = service.resolve_video("FoodChannel")
         assert video.video_id == "xyz98765432"
 
-    def test_resolve_ambiguous(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_ambiguous(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         with pytest.raises(AmbiguousVideoError):
             service.resolve_video("Channel")
 
-    def test_resolve_not_found(self, service, sqlite_repo, mock_extractor, sample_video):
+    def test_resolve_not_found(
+        self, service, sqlite_repo, mock_extractor, sample_video
+    ):
         self._add_videos(service, sqlite_repo, mock_extractor, sample_video)
         with pytest.raises(VideoNotFoundError, match="No video matching"):
             service.resolve_video("nonexistent_query")

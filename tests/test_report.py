@@ -24,14 +24,16 @@ def _report_json(*, title="Test Report", with_frames=False, video_id=None):
         if video_id:
             f["video_id"] = video_id
         frames = [f]
-    return json.dumps({
-        "title": title,
-        "summary": "A test summary.",
-        "sections": [
-            {"heading": "Section 1", "content": "Content here.", "frames": frames}
-        ],
-        "key_takeaways": ["Takeaway 1", "Takeaway 2"],
-    })
+    return json.dumps(
+        {
+            "title": title,
+            "summary": "A test summary.",
+            "sections": [
+                {"heading": "Section 1", "content": "Content here.", "frames": frames}
+            ],
+            "key_takeaways": ["Takeaway 1", "Takeaway 2"],
+        }
+    )
 
 
 def _set_llm_response(mock_llm, content):
@@ -56,7 +58,9 @@ class TestGenerateSingle:
 
 class TestGenerateMulti:
     def test_returns_report(self, report_builder, sample_video, mock_llm):
-        _set_llm_response(mock_llm, _report_json(with_frames=True, video_id=sample_video.video_id))
+        _set_llm_response(
+            mock_llm, _report_json(with_frames=True, video_id=sample_video.video_id)
+        )
         report = report_builder.generate_multi([sample_video], "ML overview")
         assert report.title == "Test Report"
 
@@ -80,10 +84,15 @@ class TestRender:
 class TestFrameExtraction:
     def test_failure_tolerant(self, sample_video, mock_llm):
         from mcptube.ingestion.frames import FrameExtractionError, FrameExtractor
+
         failing_frames = FrameExtractor()
-        with patch.object(failing_frames, "extract_frame", side_effect=FrameExtractionError("fail")):
+        with patch.object(
+            failing_frames, "extract_frame", side_effect=FrameExtractionError("fail")
+        ):
             builder = ReportBuilder(llm=mock_llm, frame_extractor=failing_frames)
-            _set_llm_response(mock_llm, _report_json(with_frames=True, video_id=sample_video.video_id))
+            _set_llm_response(
+                mock_llm, _report_json(with_frames=True, video_id=sample_video.video_id)
+            )
             report = builder.generate_single(sample_video)
             assert report.sections[0].frames[0].path is None
 

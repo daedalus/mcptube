@@ -143,7 +143,9 @@ class SQLiteVideoRepository(VideoRepository):
 
         if include_transcript:
             chapters = [Chapter(**ch) for ch in json.loads(row["chapters"])]
-            transcript = [TranscriptSegment(**seg) for seg in json.loads(row["transcript"])]
+            transcript = [
+                TranscriptSegment(**seg) for seg in json.loads(row["transcript"])
+            ]
 
         return Video(
             video_id=row["video_id"],

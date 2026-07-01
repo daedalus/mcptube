@@ -39,16 +39,16 @@ def _get_cookie_file() -> Path | None:
 
 def _translate_to_english(text: str, source_lang: str) -> str:
     """Translate text to English using LLM if not already in English."""
-    if source_lang.startswith('en'):
+    if source_lang.startswith("en"):
         return text
-    
+
     try:
         llm = get_llm()
         prompt = f"""Translate the following text from {source_lang} to English. 
         Only return the translated text, no explanations or additional formatting:
 
         {text}"""
-        
+
         response = llm.complete(prompt)
         return str(response).strip()
     except Exception as e:
@@ -75,7 +75,25 @@ class YouTubeExtractor:
     ]
 
     _LANG_PREFERENCE = ("en", "en-orig", "en-US", "en-GB")
-    _FALLBACK_LANGS = ("es", "es-ES", "es-MX", "fr", "fr-FR", "de", "de-DE", "it", "it-IT", "pt", "pt-BR", "ru", "ja", "ko", "zh", "zh-CN", "zh-TW")
+    _FALLBACK_LANGS = (
+        "es",
+        "es-ES",
+        "es-MX",
+        "fr",
+        "fr-FR",
+        "de",
+        "de-DE",
+        "it",
+        "it-IT",
+        "pt",
+        "pt-BR",
+        "ru",
+        "ja",
+        "ko",
+        "zh",
+        "zh-CN",
+        "zh-TW",
+    )
 
     def __init__(self, subtitle_cache: SubtitleCacheDB | None = None) -> None:
         self._subtitle_cache = subtitle_cache
@@ -94,7 +112,9 @@ class YouTubeExtractor:
         """
         video_id = self.parse_video_id(url)
         info = self._fetch_info(url)
-        transcript = self._get_cached_transcript(video_id) or self._extract_transcript(info)
+        transcript = self._get_cached_transcript(video_id) or self._extract_transcript(
+            info
+        )
         if transcript:
             self._cache_transcript(video_id, transcript)
         chapters = self._extract_chapters(info)
@@ -178,7 +198,9 @@ class YouTubeExtractor:
             logger.debug("Starting yt-dlp extraction for: %s", url)
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                logger.debug("yt-dlp extracted info: %s", info.get("id") if info else None)
+                logger.debug(
+                    "yt-dlp extracted info: %s", info.get("id") if info else None
+                )
                 if info is None:
                     raise ExtractionError(f"yt-dlp returned no info for: {url}")
                 return info
@@ -240,7 +262,9 @@ class YouTubeExtractor:
             vcodec = best.get("vcodec", "")
             if vcodec and vcodec != "none":
                 # Extract short codec name (e.g., "avc1.64001F" -> "avc1")
-                result["vcodec"] = vcodec.split(".")[0].replace("vp9", "vp9").replace("av01", "av1")
+                result["vcodec"] = (
+                    vcodec.split(".")[0].replace("vp9", "vp9").replace("av01", "av1")
+                )
             acodec = best.get("acodec", "")
             if acodec and acodec != "none":
                 result["acodec"] = (
@@ -259,9 +283,11 @@ class YouTubeExtractor:
         if not sub_data:
             # Try automatic captions with language fallback
             sub_data, sub_lang = self._find_json3_with_lang(auto_captions)
-         
+
         if not sub_data:
-            logger.warning("No transcript available in any language for: %s", info.get("id"))
+            logger.warning(
+                "No transcript available in any language for: %s", info.get("id")
+            )
             return []
 
         return self._parse_json3(sub_data, sub_lang)
@@ -278,7 +304,9 @@ class YouTubeExtractor:
             pass
         return None
 
-    def _cache_transcript(self, video_id: str, transcript: list[TranscriptSegment]) -> None:
+    def _cache_transcript(
+        self, video_id: str, transcript: list[TranscriptSegment]
+    ) -> None:
         """Cache transcript for video ID."""
         try:
             if self._subtitle_cache is None:
@@ -335,31 +363,45 @@ class YouTubeExtractor:
         """Download and parse JSON from a URL with retry logic for rate limiting."""
         max_retries = 3
         base_delay = 1  # Start with 1 second delay
-        
+
         for attempt in range(max_retries):
             try:
                 # Create request with proper headers to avoid some blocking
-                req = Request(url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                })
+                req = Request(
+                    url,
+                    headers={
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                    },
+                )
                 with urlopen(req, timeout=30) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except HTTPError as e:
                 if e.code == 429 and attempt < max_retries - 1:
                     # Exponential backoff with jitter
-                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
-                    logger.warning("Rate limited (429) downloading subtitles, retrying in %.1f seconds... (attempt %d/%d)", 
-                                 delay, attempt + 1, max_retries)
+                    delay = base_delay * (2**attempt) + random.uniform(0, 1)
+                    logger.warning(
+                        "Rate limited (429) downloading subtitles, retrying in %.1f seconds... (attempt %d/%d)",
+                        delay,
+                        attempt + 1,
+                        max_retries,
+                    )
                     time.sleep(delay)
                     continue
                 else:
-                    logger.warning("Failed to download subtitle data (HTTP %d): %s", e.code, e.reason)
+                    logger.warning(
+                        "Failed to download subtitle data (HTTP %d): %s",
+                        e.code,
+                        e.reason,
+                    )
                     return None
             except Exception as e:
                 logger.warning("Failed to download subtitle data: %s", e)
                 return None
-        
-        logger.warning("Failed to download subtitle data after %d attempts due to rate limiting", max_retries)
+
+        logger.warning(
+            "Failed to download subtitle data after %d attempts due to rate limiting",
+            max_retries,
+        )
         return None
 
     def _parse_json3(self, data: dict, language: str = "en") -> list[TranscriptSegment]:
@@ -379,7 +421,7 @@ class YouTubeExtractor:
                 continue
 
             # Translate to English if needed
-            if not language.startswith('en'):
+            if not language.startswith("en"):
                 text = _translate_to_english(text, language)
 
             start_ms = event.get("tStartMs", 0)

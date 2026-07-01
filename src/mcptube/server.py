@@ -229,7 +229,9 @@ def wiki_ask(question: str) -> dict:
     svc = _get_service()
     pages = svc.wiki_search(question, limit=10)
     toc = svc.wiki_toc()
-    candidates = [_page_detail(svc.wiki_show(p.slug)) for p in pages if svc.wiki_show(p.slug)]
+    candidates = [
+        _page_detail(svc.wiki_show(p.slug)) for p in pages if svc.wiki_show(p.slug)
+    ]
     return {
         "question": question,
         "toc": toc,
@@ -249,7 +251,9 @@ def wiki_history(slug: str) -> list[dict]:
         slug: Wiki page slug identifier.
     """
     versions = _get_service().wiki_history(slug)
-    return [{"updated_at": v.updated_at.isoformat(), "title": v.title} for v in versions]
+    return [
+        {"updated_at": v.updated_at.isoformat(), "title": v.title} for v in versions
+    ]
 
 
 # --- Frame Extraction ---
@@ -364,7 +368,8 @@ def generate_report(video_id: str, query: str | None = None) -> dict:
             "tags": video.tags,
             "chapters": [ch.model_dump() for ch in video.chapters],
             "transcript": [
-                {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+                {"start": s.start, "end": s.end, "text": s.text}
+                for s in video.transcript
             ],
             "query": query,
             "instructions": (
@@ -470,7 +475,8 @@ def discover_videos(topic: str) -> dict:
                     {
                         "video_id": entry.get("id", ""),
                         "title": entry.get("title", ""),
-                        "channel": entry.get("channel", "") or entry.get("uploader", ""),
+                        "channel": entry.get("channel", "")
+                        or entry.get("uploader", ""),
                         "duration": float(entry.get("duration") or 0),
                         "url": f"https://www.youtube.com/watch?v={entry.get('id', '')}",
                     }
@@ -506,7 +512,8 @@ def synthesize(video_ids: list[str], topic: str) -> dict:
                     "tags": video.tags,
                     "chapters": [ch.model_dump() for ch in video.chapters],
                     "transcript": [
-                        {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+                        {"start": s.start, "end": s.end, "text": s.text}
+                        for s in video.transcript
                     ],
                 }
             )
@@ -534,7 +541,9 @@ def ask_video(video_id: str, question: str) -> dict:
     try:
         svc = _get_service()
         video = svc.get_info(video_id)
-        transcript = [{"start": s.start, "end": s.end, "text": s.text} for s in video.transcript]
+        transcript = [
+            {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+        ]
         return {
             "video_id": video.video_id,
             "title": video.title,
@@ -569,7 +578,8 @@ def ask_videos(video_ids: list[str], question: str) -> dict:
                     "title": video.title,
                     "channel": video.channel,
                     "transcript": [
-                        {"start": s.start, "end": s.end, "text": s.text} for s in video.transcript
+                        {"start": s.start, "end": s.end, "text": s.text}
+                        for s in video.transcript
                     ],
                 }
             )

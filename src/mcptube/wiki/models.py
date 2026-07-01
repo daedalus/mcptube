@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 class WikiPageType(str, Enum):
     """Types of wiki pages in the knowledge base."""
+
     VIDEO = "video"
     ENTITY = "entity"
     TOPIC = "topic"
@@ -16,6 +17,7 @@ class WikiPageType(str, Enum):
 
 class EntityCategory(str, Enum):
     """Categories for entity pages."""
+
     PERSON = "person"
     COMPANY = "company"
     TOOL = "tool"
@@ -25,6 +27,7 @@ class EntityCategory(str, Enum):
 
 class FrameDescription(BaseModel):
     """A key frame extracted and described by the vision model."""
+
     filename: str
     timestamp: float
     description: str
@@ -32,6 +35,7 @@ class FrameDescription(BaseModel):
 
 class VideoContribution(BaseModel):
     """What a specific video said about a topic/concept — immutable once written."""
+
     video_id: str
     title: str
     channel: str
@@ -42,6 +46,7 @@ class VideoContribution(BaseModel):
 
 class WikiPageBase(BaseModel):
     """Base model for all wiki pages."""
+
     slug: str  # URL/filename-safe identifier (e.g. "transformer-architecture")
     page_type: WikiPageType
     title: str
@@ -53,19 +58,23 @@ class WikiPageBase(BaseModel):
 
 class VideoPage(WikiPageBase):
     """Write-once page for an ingested video."""
+
     page_type: WikiPageType = WikiPageType.VIDEO
     video_id: str
     channel: str = ""
     duration: float = 0.0
     processing_tier: str = "full_analysis"  # "text_only" or "full_analysis"
     summary: str = ""
-    key_timestamps: dict[str, str] = Field(default_factory=dict)  # {"00:30": "Introduction"}
+    key_timestamps: dict[str, str] = Field(
+        default_factory=dict
+    )  # {"00:30": "Introduction"}
     key_frames: list[FrameDescription] = Field(default_factory=list)
     transcript: str = ""  # full transcript — immutable
 
 
 class EntityPage(WikiPageBase):
     """Append-only page for named entities (people, companies, tools, etc.)."""
+
     page_type: WikiPageType = WikiPageType.ENTITY
     category: EntityCategory = EntityCategory.OTHER
     overview: str = ""  # LLM synthesis — updated when new videos reference this entity
@@ -74,6 +83,7 @@ class EntityPage(WikiPageBase):
 
 class TopicPage(WikiPageBase):
     """Topic page — synthesis rewritten, per-video contributions immutable."""
+
     page_type: WikiPageType = WikiPageType.TOPIC
     synthesis: str = ""  # LLM-generated overview — rewritten on new video ingest
     contributions: list[VideoContribution] = Field(default_factory=list)
@@ -81,6 +91,7 @@ class TopicPage(WikiPageBase):
 
 class ConceptPage(WikiPageBase):
     """Concept page — synthesis rewritten, per-video contributions immutable."""
+
     page_type: WikiPageType = WikiPageType.CONCEPT
     synthesis: str = ""  # LLM-generated overview — rewritten on new video ingest
     contributions: list[VideoContribution] = Field(default_factory=list)

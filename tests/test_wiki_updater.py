@@ -27,7 +27,9 @@ def wiki_repo(tmp_path):
 def mock_llm():
     llm = MagicMock(spec=LLMClient)
     llm.available = True
-    llm._complete = MagicMock(return_value="Updated synthesis combining all perspectives.")
+    llm._complete = MagicMock(
+        return_value="Updated synthesis combining all perspectives."
+    )
     return llm
 
 
@@ -67,8 +69,11 @@ def entity_page_from_a():
         overview="OpenAI builds GPT models.",
         video_references=[
             VideoContribution(
-                video_id="aaa111", title="Video A", channel="ChannelA",
-                content="Video A discusses OpenAI's research.", timestamps=["01:00"],
+                video_id="aaa111",
+                title="Video A",
+                channel="ChannelA",
+                content="Video A discusses OpenAI's research.",
+                timestamps=["01:00"],
             )
         ],
         tags=["company"],
@@ -85,8 +90,11 @@ def entity_page_from_b():
         overview="OpenAI released GPT-4.",
         video_references=[
             VideoContribution(
-                video_id="bbb222", title="Video B", channel="ChannelB",
-                content="Video B covers GPT-4 launch.", timestamps=["03:00"],
+                video_id="bbb222",
+                title="Video B",
+                channel="ChannelB",
+                content="Video B covers GPT-4 launch.",
+                timestamps=["03:00"],
             )
         ],
         tags=["AI"],
@@ -102,8 +110,11 @@ def topic_page_from_a():
         synthesis="ML is about learning from data.",
         contributions=[
             VideoContribution(
-                video_id="aaa111", title="Video A", channel="ChannelA",
-                content="Video A covers ML basics.", timestamps=["02:00"],
+                video_id="aaa111",
+                title="Video A",
+                channel="ChannelA",
+                content="Video A covers ML basics.",
+                timestamps=["02:00"],
             )
         ],
         tags=["ML"],
@@ -119,8 +130,11 @@ def topic_page_from_b():
         synthesis="ML powers modern AI systems.",
         contributions=[
             VideoContribution(
-                video_id="bbb222", title="Video B", channel="ChannelB",
-                content="Video B covers advanced ML.", timestamps=["04:00"],
+                video_id="bbb222",
+                title="Video B",
+                channel="ChannelB",
+                content="Video B covers advanced ML.",
+                timestamps=["04:00"],
             )
         ],
         tags=["AI"],
@@ -136,8 +150,11 @@ def concept_page_from_a():
         synthesis="Self-attention lets tokens attend to each other.",
         contributions=[
             VideoContribution(
-                video_id="aaa111", title="Video A", channel="ChannelA",
-                content="Explains the mechanics of self-attention.", timestamps=["05:00"],
+                video_id="aaa111",
+                title="Video A",
+                channel="ChannelA",
+                content="Explains the mechanics of self-attention.",
+                timestamps=["05:00"],
             )
         ],
         tags=["transformers"],
@@ -153,8 +170,11 @@ def concept_page_from_b():
         synthesis="Self-attention is computationally expensive.",
         contributions=[
             VideoContribution(
-                video_id="bbb222", title="Video B", channel="ChannelB",
-                content="Discusses efficiency tradeoffs in attention.", timestamps=["06:00"],
+                video_id="bbb222",
+                title="Video B",
+                channel="ChannelB",
+                content="Discusses efficiency tradeoffs in attention.",
+                timestamps=["06:00"],
             )
         ],
         tags=["efficiency"],
@@ -208,7 +228,9 @@ class TestEntityPageUpdate:
         assert isinstance(page, EntityPage)
         assert len(page.video_references) == 1
 
-    def test_entity_appends_new_reference(self, updater, wiki_repo, entity_page_from_a, entity_page_from_b):
+    def test_entity_appends_new_reference(
+        self, updater, wiki_repo, entity_page_from_a, entity_page_from_b
+    ):
         wiki_repo.save_page(entity_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -233,7 +255,9 @@ class TestEntityPageUpdate:
         page = wiki_repo.get_page("entity-openai")
         assert len(page.video_references) == 1  # not duplicated
 
-    def test_entity_merges_tags(self, updater, wiki_repo, entity_page_from_a, entity_page_from_b):
+    def test_entity_merges_tags(
+        self, updater, wiki_repo, entity_page_from_a, entity_page_from_b
+    ):
         wiki_repo.save_page(entity_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -246,7 +270,9 @@ class TestEntityPageUpdate:
         assert "company" in page.tags
         assert "AI" in page.tags
 
-    def test_entity_merges_related_pages(self, updater, wiki_repo, entity_page_from_a, entity_page_from_b):
+    def test_entity_merges_related_pages(
+        self, updater, wiki_repo, entity_page_from_a, entity_page_from_b
+    ):
         wiki_repo.save_page(entity_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -259,7 +285,9 @@ class TestEntityPageUpdate:
         assert "video-aaa111" in page.related_pages
         assert "video-bbb222" in page.related_pages
 
-    def test_entity_overview_rewritten(self, updater, wiki_repo, mock_llm, entity_page_from_a, entity_page_from_b):
+    def test_entity_overview_rewritten(
+        self, updater, wiki_repo, mock_llm, entity_page_from_a, entity_page_from_b
+    ):
         wiki_repo.save_page(entity_page_from_a)
         mock_llm._complete = MagicMock(return_value="Rewritten overview of OpenAI.")
         extracted = {
@@ -289,7 +317,9 @@ class TestTopicPageUpdate:
         page = wiki_repo.get_page("topic-machine-learning")
         assert len(page.contributions) == 1
 
-    def test_topic_appends_contribution(self, updater, wiki_repo, topic_page_from_a, topic_page_from_b):
+    def test_topic_appends_contribution(
+        self, updater, wiki_repo, topic_page_from_a, topic_page_from_b
+    ):
         wiki_repo.save_page(topic_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -303,7 +333,9 @@ class TestTopicPageUpdate:
         video_ids = {c.video_id for c in page.contributions}
         assert video_ids == {"aaa111", "bbb222"}
 
-    def test_topic_skips_duplicate_contribution(self, updater, wiki_repo, topic_page_from_a):
+    def test_topic_skips_duplicate_contribution(
+        self, updater, wiki_repo, topic_page_from_a
+    ):
         wiki_repo.save_page(topic_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-aaa111", title="V", video_id="aaa111"),
@@ -315,7 +347,9 @@ class TestTopicPageUpdate:
         page = wiki_repo.get_page("topic-machine-learning")
         assert len(page.contributions) == 1  # not duplicated
 
-    def test_topic_synthesis_rewritten(self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b):
+    def test_topic_synthesis_rewritten(
+        self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b
+    ):
         wiki_repo.save_page(topic_page_from_a)
         mock_llm._complete = MagicMock(return_value="Rewritten ML synthesis.")
         extracted = {
@@ -328,7 +362,9 @@ class TestTopicPageUpdate:
         page = wiki_repo.get_page("topic-machine-learning")
         assert page.synthesis == "Rewritten ML synthesis."
 
-    def test_topic_original_contributions_immutable(self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b):
+    def test_topic_original_contributions_immutable(
+        self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b
+    ):
         wiki_repo.save_page(topic_page_from_a)
         mock_llm._complete = MagicMock(return_value="New synthesis.")
         extracted = {
@@ -357,7 +393,9 @@ class TestConceptPageUpdate:
         stats = updater.update_wiki(extracted)
         assert wiki_repo.exists("concept-self-attention")
 
-    def test_concept_appends_contribution(self, updater, wiki_repo, concept_page_from_a, concept_page_from_b):
+    def test_concept_appends_contribution(
+        self, updater, wiki_repo, concept_page_from_a, concept_page_from_b
+    ):
         wiki_repo.save_page(concept_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -369,7 +407,9 @@ class TestConceptPageUpdate:
         page = wiki_repo.get_page("concept-self-attention")
         assert len(page.contributions) == 2
 
-    def test_concept_skips_duplicate_contribution(self, updater, wiki_repo, concept_page_from_a):
+    def test_concept_skips_duplicate_contribution(
+        self, updater, wiki_repo, concept_page_from_a
+    ):
         wiki_repo.save_page(concept_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-aaa111", title="V", video_id="aaa111"),
@@ -381,7 +421,9 @@ class TestConceptPageUpdate:
         page = wiki_repo.get_page("concept-self-attention")
         assert len(page.contributions) == 1
 
-    def test_concept_synthesis_rewritten(self, updater, wiki_repo, mock_llm, concept_page_from_a, concept_page_from_b):
+    def test_concept_synthesis_rewritten(
+        self, updater, wiki_repo, mock_llm, concept_page_from_a, concept_page_from_b
+    ):
         wiki_repo.save_page(concept_page_from_a)
         mock_llm._complete = MagicMock(return_value="Rewritten attention synthesis.")
         extracted = {
@@ -394,7 +436,9 @@ class TestConceptPageUpdate:
         page = wiki_repo.get_page("concept-self-attention")
         assert page.synthesis == "Rewritten attention synthesis."
 
-    def test_concept_merges_tags(self, updater, wiki_repo, concept_page_from_a, concept_page_from_b):
+    def test_concept_merges_tags(
+        self, updater, wiki_repo, concept_page_from_a, concept_page_from_b
+    ):
         wiki_repo.save_page(concept_page_from_a)
         extracted = {
             "video_page": VideoPage(slug="video-bbb222", title="V", video_id="bbb222"),
@@ -412,7 +456,15 @@ class TestConceptPageUpdate:
 
 
 class TestFullExtraction:
-    def test_combined_stats(self, updater, wiki_repo, video_page_a, entity_page_from_a, topic_page_from_a, concept_page_from_a):
+    def test_combined_stats(
+        self,
+        updater,
+        wiki_repo,
+        video_page_a,
+        entity_page_from_a,
+        topic_page_from_a,
+        concept_page_from_a,
+    ):
         extracted = {
             "video_page": video_page_a,
             "entity_pages": [entity_page_from_a],
@@ -425,11 +477,18 @@ class TestFullExtraction:
         assert stats["skipped"] == 0
 
     def test_second_video_updates(
-        self, updater, wiki_repo, mock_llm,
-        video_page_a, video_page_b,
-        entity_page_from_a, entity_page_from_b,
-        topic_page_from_a, topic_page_from_b,
-        concept_page_from_a, concept_page_from_b,
+        self,
+        updater,
+        wiki_repo,
+        mock_llm,
+        video_page_a,
+        video_page_b,
+        entity_page_from_a,
+        entity_page_from_b,
+        topic_page_from_a,
+        topic_page_from_b,
+        concept_page_from_a,
+        concept_page_from_b,
     ):
         # Ingest first video
         extracted_a = {
@@ -470,7 +529,9 @@ class TestFullExtraction:
 
 
 class TestLLMFailureHandling:
-    def test_entity_overview_preserved_on_llm_failure(self, updater, wiki_repo, mock_llm, entity_page_from_a, entity_page_from_b):
+    def test_entity_overview_preserved_on_llm_failure(
+        self, updater, wiki_repo, mock_llm, entity_page_from_a, entity_page_from_b
+    ):
         wiki_repo.save_page(entity_page_from_a)
         mock_llm._complete = MagicMock(side_effect=LLMError("API down"))
         extracted = {
@@ -486,7 +547,9 @@ class TestLLMFailureHandling:
         # Original overview preserved
         assert page.overview == "OpenAI builds GPT models."
 
-    def test_topic_synthesis_preserved_on_llm_failure(self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b):
+    def test_topic_synthesis_preserved_on_llm_failure(
+        self, updater, wiki_repo, mock_llm, topic_page_from_a, topic_page_from_b
+    ):
         wiki_repo.save_page(topic_page_from_a)
         mock_llm._complete = MagicMock(side_effect=LLMError("API down"))
         extracted = {

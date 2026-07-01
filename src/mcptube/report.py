@@ -83,7 +83,6 @@ class ReportBuilder:
     def generate_multi(
         self, videos: list[Video], query: str, wiki_frames: dict | None = None
     ) -> Report:
-
         """Generate an illustrated report across multiple videos.
 
         Args:
@@ -127,7 +126,9 @@ class ReportBuilder:
             for frame in section.frames:
                 if frame.path and frame.path.exists():
                     lines.append(f"![{frame.reason}]({frame.path})")
-                    lines.append(f"*{frame.reason} [{frame.video_id} @ {self._fmt_time(frame.timestamp)}]*")
+                    lines.append(
+                        f"*{frame.reason} [{frame.video_id} @ {self._fmt_time(frame.timestamp)}]*"
+                    )
                     lines.append("")
 
         if report.key_takeaways:
@@ -149,10 +150,10 @@ class ReportBuilder:
                 if frame.path and frame.path.exists():
                     b64 = base64.b64encode(frame.path.read_bytes()).decode()
                     frames_html += (
-                        f'<figure>'
+                        f"<figure>"
                         f'<img src="data:image/jpeg;base64,{b64}" alt="{frame.reason}">'
-                        f'<figcaption>{frame.reason} [{frame.video_id} @ {self._fmt_time(frame.timestamp)}]</figcaption>'
-                        f'</figure>\n'
+                        f"<figcaption>{frame.reason} [{frame.video_id} @ {self._fmt_time(frame.timestamp)}]</figcaption>"
+                        f"</figure>\n"
                     )
             sections_html.append(
                 f"<section><h2>{section.heading}</h2>"
@@ -192,8 +193,8 @@ class ReportBuilder:
     def _build_single_prompt(
         self, metadata: str, transcript: str, query: str | None
     ) -> str:
-                focus = f"\nFocus the report on: {query}" if query else ""
-                return f"""You are a report generator. Given a YouTube video transcript and metadata, 
+        focus = f"\nFocus the report on: {query}" if query else ""
+        return f"""You are a report generator. Given a YouTube video transcript and metadata, 
         produce a comprehensive illustrated report.{focus}
 
         {metadata}
@@ -225,16 +226,20 @@ class ReportBuilder:
         - Include 3-6 key takeaways
         - No markdown in JSON values"""
 
-    def _build_multi_prompt(self, combined: str, query: str, wiki_frames: dict | None = None) -> str:
-            frames_block = ""
-            if wiki_frames:
-                lines = ["## Available Key Frames (use ONLY these timestamps)"]
-                for vid_id, frames in wiki_frames.items():
-                    for kf in frames:
-                        lines.append(f"- video_id: {vid_id} | timestamp: {kf.timestamp} | {kf.description}")
-                frames_block = "\n".join(lines)
+    def _build_multi_prompt(
+        self, combined: str, query: str, wiki_frames: dict | None = None
+    ) -> str:
+        frames_block = ""
+        if wiki_frames:
+            lines = ["## Available Key Frames (use ONLY these timestamps)"]
+            for vid_id, frames in wiki_frames.items():
+                for kf in frames:
+                    lines.append(
+                        f"- video_id: {vid_id} | timestamp: {kf.timestamp} | {kf.description}"
+                    )
+            frames_block = "\n".join(lines)
 
-            return f"""You are a report generator. Given transcripts from multiple YouTube videos, 
+        return f"""You are a report generator. Given transcripts from multiple YouTube videos, 
         produce a comprehensive illustrated cross-video report focused on: {query}
 
         {combined}
@@ -273,9 +278,6 @@ class ReportBuilder:
         - Include 3-6 key takeaways
         - No markdown in JSON values"""
 
-
-                
-
     def _parse_report(self, raw: str, default_video_id: str | None) -> Report:
         """Parse LLM JSON response into a Report."""
         text = raw.strip()
@@ -291,16 +293,20 @@ class ReportBuilder:
         for s in data.get("sections", []):
             frames = []
             for f in s.get("frames", []):
-                frames.append(FrameSelection(
-                    video_id=f.get("video_id", default_video_id or ""),
-                    timestamp=float(f.get("timestamp", 0)),
-                    reason=f.get("reason", ""),
-                ))
-            sections.append(ReportSection(
-                heading=s.get("heading", ""),
-                content=s.get("content", ""),
-                frames=frames,
-            ))
+                frames.append(
+                    FrameSelection(
+                        video_id=f.get("video_id", default_video_id or ""),
+                        timestamp=float(f.get("timestamp", 0)),
+                        reason=f.get("reason", ""),
+                    )
+                )
+            sections.append(
+                ReportSection(
+                    heading=s.get("heading", ""),
+                    content=s.get("content", ""),
+                    frames=frames,
+                )
+            )
 
         return Report(
             title=data.get("title", "Untitled Report"),
@@ -321,7 +327,9 @@ class ReportBuilder:
                         frame.video_id, frame.timestamp
                     )
                 except FrameExtractionError as e:
-                    logger.warning("Frame extraction failed at %.1fs: %s", frame.timestamp, e)
+                    logger.warning(
+                        "Frame extraction failed at %.1fs: %s", frame.timestamp, e
+                    )
 
     @staticmethod
     def _format_transcript(video: Video) -> str:
@@ -343,7 +351,9 @@ class ReportBuilder:
         if video.tags:
             parts.append(f"Tags: {', '.join(video.tags)}")
         if video.chapters:
-            ch_list = ", ".join(f"{ch.title} ({ch.start:.0f}s)" for ch in video.chapters)
+            ch_list = ", ".join(
+                f"{ch.title} ({ch.start:.0f}s)" for ch in video.chapters
+            )
             parts.append(f"Chapters: {ch_list}")
         return "\n".join(parts)
 

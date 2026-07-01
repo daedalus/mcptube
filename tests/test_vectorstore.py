@@ -14,9 +14,14 @@ class TestChromaVectorStore:
 
     def test_search_scoped_to_video(self, chroma_store, sample_segments):
         chroma_store.index_video("vid1", sample_segments)
-        chroma_store.index_video("vid2", [
-            TranscriptSegment(start=0.0, duration=5.0, text="Cooking pasta is easy."),
-        ])
+        chroma_store.index_video(
+            "vid2",
+            [
+                TranscriptSegment(
+                    start=0.0, duration=5.0, text="Cooking pasta is easy."
+                ),
+            ],
+        )
         results = chroma_store.search("neural networks", video_id="vid2")
         for r in results:
             assert r.video_id == "vid2"
@@ -38,7 +43,11 @@ class TestChromaVectorStore:
     def test_index_replaces_existing(self, chroma_store, sample_segments):
         chroma_store.index_video("vid1", sample_segments)
         new_segments = [
-            TranscriptSegment(start=0.0, duration=5.0, text="Completely different content about cooking."),
+            TranscriptSegment(
+                start=0.0,
+                duration=5.0,
+                text="Completely different content about cooking.",
+            ),
         ]
         chroma_store.index_video("vid1", new_segments)
         results = chroma_store.search("cooking", video_id="vid1")

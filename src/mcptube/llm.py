@@ -126,7 +126,8 @@ class LLMClient:
         """Send a completion request to the configured LLM."""
         if not self.available:
             raise LLMError(
-                "No LLM API key found. Set one of: " + ", ".join(self._KEY_TO_MODEL.keys())
+                "No LLM API key found. Set one of: "
+                + ", ".join(self._KEY_TO_MODEL.keys())
             )
 
         # Check prompt cache first
@@ -151,7 +152,8 @@ class LLMClient:
             try:
                 logger.debug("LLM request to %s (max_tokens=%d)", model, max_tokens)
                 logger.debug(
-                    "LLM prompt: %s", prompt[:200] + "..." if len(prompt) > 200 else prompt
+                    "LLM prompt: %s",
+                    prompt[:200] + "..." if len(prompt) > 200 else prompt,
                 )
                 response = litellm.completion(
                     model=model,
@@ -164,11 +166,14 @@ class LLMClient:
                 )
                 content = response.choices[0].message.content
                 # Reasoning models may put output in reasoning_content when content is empty
-                if not content and hasattr(response.choices[0].message, "reasoning_content"):
+                if not content and hasattr(
+                    response.choices[0].message, "reasoning_content"
+                ):
                     content = response.choices[0].message.reasoning_content or ""
                 content = content.strip()
                 logger.debug(
-                    "LLM response: %s", content[:200] + "..." if len(content) > 200 else content
+                    "LLM response: %s",
+                    content[:200] + "..." if len(content) > 200 else content,
                 )
 
                 # Cache the response
@@ -211,11 +216,11 @@ class LLMClient:
 
     def complete(self, prompt: str, max_tokens: int = 4096) -> str:
         """Complete a prompt using the LLM.
-        
+
         Args:
             prompt: The prompt to complete.
             max_tokens: Maximum tokens to generate.
-            
+
         Returns:
             The completed text.
         """

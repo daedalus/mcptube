@@ -115,12 +115,14 @@ class ChromaVectorStore(VectorStore):
                 continue
 
             documents.append(text)
-            metadatas.append({
-                "video_id": video_id,
-                "start": seg.start,
-                "end": seg.end,
-                "segment_index": i,
-            })
+            metadatas.append(
+                {
+                    "video_id": video_id,
+                    "start": seg.start,
+                    "end": seg.end,
+                    "segment_index": i,
+                }
+            )
             ids.append(f"{video_id}_{i}")
 
         # ChromaDB has batch size limits — add in chunks
@@ -167,13 +169,15 @@ class ChromaVectorStore(VectorStore):
                 results["metadatas"][0],
                 results["distances"][0],
             ):
-                search_results.append(SearchResult(
-                    video_id=meta["video_id"],
-                    text=doc,
-                    start=meta["start"],
-                    end=meta["end"],
-                    score=dist,
-                ))
+                search_results.append(
+                    SearchResult(
+                        video_id=meta["video_id"],
+                        text=doc,
+                        start=meta["start"],
+                        end=meta["end"],
+                        score=dist,
+                    )
+                )
 
         return search_results
 

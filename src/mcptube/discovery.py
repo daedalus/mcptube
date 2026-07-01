@@ -98,7 +98,8 @@ class VideoDiscovery:
                         DiscoveredVideo(
                             video_id=entry.get("id", ""),
                             title=entry.get("title", ""),
-                            channel=entry.get("channel", "") or entry.get("uploader", ""),
+                            channel=entry.get("channel", "")
+                            or entry.get("uploader", ""),
                             duration=float(entry.get("duration") or 0),
                             description=entry.get("description", "") or "",
                             thumbnail_url=entry.get("thumbnail", "") or "",
@@ -110,7 +111,9 @@ class VideoDiscovery:
             logger.warning("YouTube search failed: %s", e)
             return []
 
-    def _filter_and_cluster(self, topic: str, videos: list[DiscoveredVideo]) -> DiscoveryResult:
+    def _filter_and_cluster(
+        self, topic: str, videos: list[DiscoveredVideo]
+    ) -> DiscoveryResult:
         """Use LLM to filter irrelevant results and cluster the rest."""
         import json
 

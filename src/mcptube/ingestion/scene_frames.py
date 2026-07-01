@@ -68,7 +68,9 @@ class SceneFrameExtractor:
         # Check cache — if frames already extracted, return them
         cached = self._load_cached(output_dir)
         if cached:
-            logger.info("Scene frames cache hit: %d frames for %s", len(cached), video_id)
+            logger.info(
+                "Scene frames cache hit: %d frames for %s", len(cached), video_id
+            )
             return cached[:max_frames]
 
         # Resolve direct stream URL
@@ -109,7 +111,8 @@ class SceneFrameExtractor:
         if settings.cookies_from_browser:
             ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
             logger.debug(
-                "Using cookies from browser for scene frames: %s", settings.cookies_from_browser
+                "Using cookies from browser for scene frames: %s",
+                settings.cookies_from_browser,
             )
         logger.info("scene_frames ydl_opts: %s", ydl_opts)
         try:
@@ -168,7 +171,9 @@ class SceneFrameExtractor:
         except subprocess.TimeoutExpired:
             raise SceneFrameError("ffmpeg timed out during scene detection")
         except FileNotFoundError:
-            raise SceneFrameError("ffmpeg not found. Install it: https://ffmpeg.org/download.html")
+            raise SceneFrameError(
+                "ffmpeg not found. Install it: https://ffmpeg.org/download.html"
+            )
 
         # Parse timestamps from ffmpeg showinfo output
         timestamps = self._parse_showinfo_timestamps(result.stderr)

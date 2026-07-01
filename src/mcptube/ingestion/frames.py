@@ -67,15 +67,21 @@ class FrameExtractor:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info is None:
-                    raise FrameExtractionError(f"yt-dlp returned no info for: {video_id}")
+                    raise FrameExtractionError(
+                        f"yt-dlp returned no info for: {video_id}"
+                    )
                 stream_url = info.get("url")
                 if not stream_url:
-                    raise FrameExtractionError(f"No stream URL resolved for: {video_id}")
+                    raise FrameExtractionError(
+                        f"No stream URL resolved for: {video_id}"
+                    )
                 return stream_url
         except yt_dlp.utils.DownloadError as e:
             raise FrameExtractionError(f"Failed to resolve stream URL: {e}") from e
 
-    def _extract_with_ffmpeg(self, stream_url: str, timestamp: float, output: Path) -> None:
+    def _extract_with_ffmpeg(
+        self, stream_url: str, timestamp: float, output: Path
+    ) -> None:
         """Use ffmpeg to seek and extract a single JPEG frame."""
         output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -106,7 +112,9 @@ class FrameExtractor:
                 )
             logger.info("Frame extracted: %s", output)
         except subprocess.TimeoutExpired:
-            raise FrameExtractionError(f"ffmpeg timed out extracting frame at {timestamp}s")
+            raise FrameExtractionError(
+                f"ffmpeg timed out extracting frame at {timestamp}s"
+            )
         except FileNotFoundError:
             raise FrameExtractionError(
                 "ffmpeg not found. Install it: https://ffmpeg.org/download.html"

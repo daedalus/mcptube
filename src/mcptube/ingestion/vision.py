@@ -47,7 +47,12 @@ Example: ["Frame shows a title slide reading 'Introduction to LLMs'", "Presenter
 
 Return ONLY the JSON array. No markdown, no explanation."""
 
-    def __init__(self, llm: LLMClient, cache: FrameCacheDB | None = None, model: str | None = None) -> None:
+    def __init__(
+        self,
+        llm: LLMClient,
+        cache: FrameCacheDB | None = None,
+        model: str | None = None,
+    ) -> None:
         self._llm = llm
         self._model = model or self._detect_vision_model()
         self._cache = cache
@@ -72,7 +77,10 @@ Return ONLY the JSON array. No markdown, no explanation."""
 
         # Skip vision if no vision-capable model is available
         if not self._model or not self._is_vision_capable(self._model):
-            logger.warning("No vision-capable model available (model: %s), skipping frame descriptions", self._model)
+            logger.warning(
+                "No vision-capable model available (model: %s), skipping frame descriptions",
+                self._model,
+            )
             return [
                 FrameDescription(
                     filename=frame["path"].name,
@@ -261,5 +269,13 @@ Return ONLY the JSON array. No markdown, no explanation."""
     @staticmethod
     def _is_vision_capable(model: str) -> bool:
         """Check if a model supports vision (multimodal) inputs."""
-        vision_keywords = ["gpt-4o", "gpt-4v", "claude-3", "claude-sonnet-4", "gemini", "llava", "vision"]
+        vision_keywords = [
+            "gpt-4o",
+            "gpt-4v",
+            "claude-3",
+            "claude-sonnet-4",
+            "gemini",
+            "llava",
+            "vision",
+        ]
         return any(kw in model.lower() for kw in vision_keywords)

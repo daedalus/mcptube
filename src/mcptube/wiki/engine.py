@@ -56,7 +56,10 @@ class WikiEngine:
 
         logger.info(
             "Wiki ingest complete for %s: %d created, %d updated, %d skipped",
-            video.video_id, stats["created"], stats["updated"], stats["skipped"],
+            video.video_id,
+            stats["created"],
+            stats["updated"],
+            stats["skipped"],
         )
         return stats
 
@@ -103,7 +106,11 @@ class WikiEngine:
         for page in candidates:
             candidate_texts.append(self._format_page_for_context(page))
 
-        candidates_section = "\n\n---\n\n".join(candidate_texts) if candidate_texts else "(No direct matches found)"
+        candidates_section = (
+            "\n\n---\n\n".join(candidate_texts)
+            if candidate_texts
+            else "(No direct matches found)"
+        )
 
         prompt = f"""You are a knowledgeable assistant with access to a curated video wiki.
 Use the wiki content below to answer the user's question thoroughly and accurately.
@@ -174,6 +181,7 @@ Guidelines:
         # Clean references from entity pages
         for page in self._repo.list_pages(page_type=WikiPageType.ENTITY):
             from mcptube.wiki.models import EntityPage
+
             if not isinstance(page, EntityPage):
                 continue
             original_count = len(page.video_references)

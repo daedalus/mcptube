@@ -34,7 +34,9 @@ class TestEntityCategory:
 
 class TestFrameDescription:
     def test_creation(self):
-        f = FrameDescription(filename="scene_0001.jpg", timestamp=12.5, description="A slide about AI")
+        f = FrameDescription(
+            filename="scene_0001.jpg", timestamp=12.5, description="A slide about AI"
+        )
         assert f.filename == "scene_0001.jpg"
         assert f.timestamp == 12.5
         assert f.description == "A slide about AI"
@@ -135,12 +137,16 @@ class TestTopicPage:
 
     def test_with_contributions(self):
         c = VideoContribution(
-            video_id="v1", title="Video 1", channel="C",
+            video_id="v1",
+            title="Video 1",
+            channel="C",
             content="This video discusses ML basics.",
         )
         p = TopicPage(
-            slug="topic-ml", title="ML",
-            synthesis="Overview", contributions=[c],
+            slug="topic-ml",
+            title="ML",
+            synthesis="Overview",
+            contributions=[c],
         )
         assert len(p.contributions) == 1
 
@@ -157,11 +163,17 @@ class TestConceptPage:
         assert p.contributions == []
 
     def test_with_multiple_contributions(self):
-        c1 = VideoContribution(video_id="v1", title="V1", channel="C", content="First view")
-        c2 = VideoContribution(video_id="v2", title="V2", channel="C", content="Second view")
+        c1 = VideoContribution(
+            video_id="v1", title="V1", channel="C", content="First view"
+        )
+        c2 = VideoContribution(
+            video_id="v2", title="V2", channel="C", content="Second view"
+        )
         p = ConceptPage(
-            slug="concept-x", title="X",
-            synthesis="Combined", contributions=[c1, c2],
+            slug="concept-x",
+            title="X",
+            synthesis="Combined",
+            contributions=[c1, c2],
         )
         assert len(p.contributions) == 2
 
@@ -169,7 +181,9 @@ class TestConceptPage:
 class TestWikiPageBase:
     def test_related_pages(self):
         p = VideoPage(
-            slug="video-x", title="X", video_id="x",
+            slug="video-x",
+            title="X",
+            video_id="x",
             related_pages=["entity-openai", "topic-ml"],
         )
         assert len(p.related_pages) == 2
@@ -190,7 +204,9 @@ class TestWikiPageBase:
             synthesis="A test synthesis.",
             tags=["test"],
             contributions=[
-                VideoContribution(video_id="v1", title="V1", channel="C", content="Content"),
+                VideoContribution(
+                    video_id="v1", title="V1", channel="C", content="Content"
+                ),
             ],
         )
         json_str = p.model_dump_json()

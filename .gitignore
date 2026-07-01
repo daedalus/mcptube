@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,45 +5,38 @@ __pycache__/
 *.egg
 dist/
 build/
+.eggs/
 *.whl
-
-# Virtual environment
-.venv/
+.env
+.venv
 venv/
 env/
-
-# IDE
-.vscode/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+.coverage.*
+*.log
+.DS_Store
 .idea/
+.vscode/
 *.swp
 *.swo
+.hypothesis/
 
 # mcptube data
 .mcptube/
 
-# ChromaDB cache
-.cache/chroma/
-
 # OS
-.DS_Store
 Thumbs.db
 
 # Testing
-.pytest_cache/
-htmlcov/
-.coverage
-
-# Environment
-.env
-
-dist/
-*.egg-info/
-
-*.log
-*.txt
-*.html
-
 test.md
+
+# Video files
 *.mp4
+
+# Config
 litellm_config.yaml
 scripts/history.json

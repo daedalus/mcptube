@@ -220,7 +220,7 @@ class FileWikiRepository(WikiRepository):
             ORDER BY rank
             LIMIT ?
         """
-        query = re.sub(r'[^\w\s]', ' ', query).strip()
+        query = re.sub(r"[^\w\s]", " ", query).strip()
 
         try:
             rows = self._conn.execute(sql, (query, limit)).fetchall()
@@ -255,15 +255,27 @@ class FileWikiRepository(WikiRepository):
 
     def get_entity_pages(self) -> list[EntityPage]:
         """List all entity pages."""
-        return [p for p in self.list_pages(page_type=WikiPageType.ENTITY) if isinstance(p, EntityPage)]
+        return [
+            p
+            for p in self.list_pages(page_type=WikiPageType.ENTITY)
+            if isinstance(p, EntityPage)
+        ]
 
     def get_topic_pages(self) -> list[TopicPage]:
         """List all topic pages."""
-        return [p for p in self.list_pages(page_type=WikiPageType.TOPIC) if isinstance(p, TopicPage)]
+        return [
+            p
+            for p in self.list_pages(page_type=WikiPageType.TOPIC)
+            if isinstance(p, TopicPage)
+        ]
 
     def get_concept_pages(self) -> list[ConceptPage]:
         """List all concept pages."""
-        return [p for p in self.list_pages(page_type=WikiPageType.CONCEPT) if isinstance(p, ConceptPage)]
+        return [
+            p
+            for p in self.list_pages(page_type=WikiPageType.CONCEPT)
+            if isinstance(p, ConceptPage)
+        ]
 
     # --- Table of Contents ---
 
@@ -291,7 +303,9 @@ class FileWikiRepository(WikiRepository):
             tag_str = f" [{', '.join(tags)}]" if tags else ""
             summary = row["summary"]
             summary_str = f" — {summary}" if summary else ""
-            lines.append(f"- **{row['title']}** (`{row['slug']}`){tag_str}{summary_str}")
+            lines.append(
+                f"- **{row['title']}** (`{row['slug']}`){tag_str}{summary_str}"
+            )
 
         return "\n".join(lines)
 

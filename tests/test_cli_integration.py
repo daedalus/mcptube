@@ -66,7 +66,9 @@ def mock_service(sample_video):
 
 class TestCLI:
     def test_add_and_list(self, mock_service):
-        result = runner.invoke(app, ["add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"])
+        result = runner.invoke(
+            app, ["add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
+        )
         assert result.exit_code == 0
         assert "Added" in result.stdout
 
@@ -76,7 +78,9 @@ class TestCLI:
 
     def test_add_duplicate_error(self, mock_service):
         runner.invoke(app, ["add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"])
-        result = runner.invoke(app, ["add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"])
+        result = runner.invoke(
+            app, ["add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
+        )
         assert result.exit_code == 1
 
     def test_info_by_id(self, mock_service):
@@ -108,7 +112,12 @@ class TestCLI:
 
     def test_add_with_frame_stats(self, mock_service):
         result = runner.invoke(
-            app, ["--show-frame-stats", "add", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]
+            app,
+            [
+                "--show-frame-stats",
+                "add",
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            ],
         )
         assert result.exit_code == 0
         assert "Frames:" in result.stdout

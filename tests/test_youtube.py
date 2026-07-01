@@ -11,16 +11,30 @@ from mcptube.ingestion.youtube import ExtractionError, YouTubeExtractor
 
 class TestParseVideoId:
     def test_watch_url(self):
-        assert YouTubeExtractor.parse_video_id("https://www.youtube.com/watch?v=BpibZSMGtdY") == "BpibZSMGtdY"
+        assert (
+            YouTubeExtractor.parse_video_id(
+                "https://www.youtube.com/watch?v=BpibZSMGtdY"
+            )
+            == "BpibZSMGtdY"
+        )
 
     def test_short_url(self):
-        assert YouTubeExtractor.parse_video_id("https://youtu.be/BpibZSMGtdY") == "BpibZSMGtdY"
+        assert (
+            YouTubeExtractor.parse_video_id("https://youtu.be/BpibZSMGtdY")
+            == "BpibZSMGtdY"
+        )
 
     def test_embed_url(self):
-        assert YouTubeExtractor.parse_video_id("https://www.youtube.com/embed/BpibZSMGtdY") == "BpibZSMGtdY"
+        assert (
+            YouTubeExtractor.parse_video_id("https://www.youtube.com/embed/BpibZSMGtdY")
+            == "BpibZSMGtdY"
+        )
 
     def test_v_path_url(self):
-        assert YouTubeExtractor.parse_video_id("https://www.youtube.com/v/BpibZSMGtdY") == "BpibZSMGtdY"
+        assert (
+            YouTubeExtractor.parse_video_id("https://www.youtube.com/v/BpibZSMGtdY")
+            == "BpibZSMGtdY"
+        )
 
     def test_watch_url_with_extras(self):
         url = "https://www.youtube.com/watch?v=BpibZSMGtdY&t=120&list=PLxyz"
@@ -63,6 +77,7 @@ class TestExtract:
     def test_extract_returns_video(self, mock_ydl_class, mock_urlopen):
         json3 = self._make_json3([(0, 5000, "Hello"), (5000, 4000, "World")])
         import json
+
         mock_urlopen.return_value.__enter__ = lambda s: s
         mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
         mock_urlopen.return_value.read.return_value = json.dumps(json3).encode()
@@ -117,6 +132,7 @@ class TestExtract:
     @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
     def test_extract_prefers_manual_subs(self, mock_ydl_class, mock_urlopen):
         import json
+
         manual_json3 = self._make_json3([(0, 5000, "Manual sub")])
         mock_urlopen.return_value.__enter__ = lambda s: s
         mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
@@ -124,7 +140,9 @@ class TestExtract:
 
         info = self._make_info(
             subtitles=self._sub_entry(),
-            auto_captions={"en": [{"ext": "json3", "url": "https://example.com/auto.json3"}]},
+            auto_captions={
+                "en": [{"ext": "json3", "url": "https://example.com/auto.json3"}]
+            },
         )
         mock_ydl = MagicMock()
         mock_ydl.extract_info.return_value = info
@@ -168,7 +186,11 @@ class TestParseJson3:
             "events": [
                 {"tStartMs": 0, "dDurationMs": 1000, "segs": [{"utf8": ""}]},
                 {"tStartMs": 1000, "dDurationMs": 1000, "segs": [{"utf8": "\n"}]},
-                {"tStartMs": 2000, "dDurationMs": 1000, "segs": [{"utf8": "Real text"}]},
+                {
+                    "tStartMs": 2000,
+                    "dDurationMs": 1000,
+                    "segs": [{"utf8": "Real text"}],
+                },
             ]
         }
         segments = extractor._parse_json3(data)

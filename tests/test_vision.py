@@ -62,7 +62,11 @@ class TestInit:
         d = VisionDescriber(mock_llm)
         assert "anthropic" in d._model or "claude" in d._model
 
-    @patch.dict("os.environ", {"OPENAI_API_KEY": "test-key", "ANTHROPIC_API_KEY": ""}, clear=False)
+    @patch.dict(
+        "os.environ",
+        {"OPENAI_API_KEY": "test-key", "ANTHROPIC_API_KEY": ""},
+        clear=False,
+    )
     def test_detects_openai(self, mock_llm):
         d = VisionDescriber(mock_llm)
         assert "gpt" in d._model
@@ -94,7 +98,9 @@ class TestDescribeIndividually:
     def test_describes_each_frame(self, mock_completion, describer, fake_frames):
         mock_completion.return_value = MagicMock(
             choices=[
-                MagicMock(message=MagicMock(content="A slide showing neural network diagram."))
+                MagicMock(
+                    message=MagicMock(content="A slide showing neural network diagram.")
+                )
             ]
         )
         results = describer._describe_individually(fake_frames)
@@ -106,7 +112,9 @@ class TestDescribeIndividually:
         assert "neural network" in results[0].description.lower()
 
     @patch("mcptube.ingestion.vision.litellm.completion")
-    def test_handles_single_frame_failure(self, mock_completion, describer, fake_frames):
+    def test_handles_single_frame_failure(
+        self, mock_completion, describer, fake_frames
+    ):
         mock_completion.side_effect = [
             MagicMock(choices=[MagicMock(message=MagicMock(content="Slide 1"))]),
             Exception("API error"),
@@ -161,13 +169,19 @@ class TestDescribeBatch:
         assert results[7].description == "Frame 7 description"
 
     @patch("mcptube.ingestion.vision.litellm.completion")
-    def test_batch_handles_markdown_fences(self, mock_completion, describer, many_fake_frames):
+    def test_batch_handles_markdown_fences(
+        self, mock_completion, describer, many_fake_frames
+    ):
         import json
 
         descriptions = [f"Desc {i}" for i in range(8)]
         mock_completion.return_value = MagicMock(
             choices=[
-                MagicMock(message=MagicMock(content=f"```json\n{json.dumps(descriptions)}\n```"))
+                MagicMock(
+                    message=MagicMock(
+                        content=f"```json\n{json.dumps(descriptions)}\n```"
+                    )
+                )
             ]
         )
         results = describer._describe_batch(many_fake_frames)
@@ -203,7 +217,9 @@ class TestRouting:
     @patch.object(VisionDescriber, "_describe_individually")
     def test_small_batch_uses_individual(self, mock_individual, describer, fake_frames):
         mock_individual.return_value = [
-            FrameDescription(filename=f["path"].name, timestamp=f["timestamp"], description="Desc")
+            FrameDescription(
+                filename=f["path"].name, timestamp=f["timestamp"], description="Desc"
+            )
             for f in fake_frames
         ]
         describer.describe_frames(fake_frames)
@@ -212,7 +228,9 @@ class TestRouting:
     @patch.object(VisionDescriber, "_describe_batch")
     def test_large_batch_uses_batch(self, mock_batch, describer, many_fake_frames):
         mock_batch.return_value = [
-            FrameDescription(filename=f["path"].name, timestamp=f["timestamp"], description="Desc")
+            FrameDescription(
+                filename=f["path"].name, timestamp=f["timestamp"], description="Desc"
+            )
             for f in many_fake_frames
         ]
         describer.describe_frames(many_fake_frames)
@@ -275,7 +293,9 @@ class TestVisionDescriberWithCache:
         return VisionDescriber(mock_llm, cache, model="gpt-4o")
 
     @patch("mcptube.ingestion.vision.litellm.completion")
-    def test_describe_single_frame_uses_cache(self, mock_completion, mock_llm, cache, tmp_path):
+    def test_describe_single_frame_uses_cache(
+        self, mock_completion, mock_llm, cache, tmp_path
+    ):
         path = tmp_path / "frame.jpg"
         path.write_bytes(b"fake jpeg")
         describer = VisionDescriber(mock_llm, cache, model="gpt-4o")
@@ -294,7 +314,9 @@ class TestVisionDescriberWithCache:
         assert mock_completion.call_count == 0
 
     @patch("mcptube.ingestion.vision.litellm.completion")
-    def test_cache_hit_avoids_api_call(self, mock_completion, mock_llm, cache, tmp_path):
+    def test_cache_hit_avoids_api_call(
+        self, mock_completion, mock_llm, cache, tmp_path
+    ):
         path = tmp_path / "frame.jpg"
         path.write_bytes(b"fake jpeg")
         db = FrameCacheDB(tmp_path / "cache.db")
@@ -307,7 +329,9 @@ class TestVisionDescriberWithCache:
         mock_completion.assert_not_called()
 
     @patch("mcptube.ingestion.vision.litellm.completion")
-    def test_batch_cache_miss_queries_llm(self, mock_completion, describer_with_cache, fake_frames):
+    def test_batch_cache_miss_queries_llm(
+        self, mock_completion, describer_with_cache, fake_frames
+    ):
         import json
 
         descriptions = [f"Frame {i}" for i in range(3)]

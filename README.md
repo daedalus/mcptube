@@ -2,15 +2,20 @@
 
 **YouTube video knowledge engine — transcripts, vision, and persistent wiki.**
 
-[![PyPI](https://img.shields.io/pypi/v/mcptube)](https://pypi.org/project/mcptube/)
-[![Python](https://img.shields.io/pypi/pyversions/mcptube)](https://pypi.org/project/mcptube/)
+[![PyPI](https://img.shields.io/pypi/v/mcptube.svg)](https://pypi.org/project/mcptube/)
+[![Python](https://img.shields.io/pypi/pyversions/mcptube.svg)](https://pypi.org/project/mcptube/)
+[![Coverage](https://codecov.io/gh/daedalus/mcptube/branch/master/graph/badge.svg)](https://codecov.io/gh/daedalus/mcptube)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/master/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/daedalus/mcptube)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+mcp-name: io.github.daedalus/mcptube
 
 mcptube-vision transforms YouTube videos into a persistent, structured knowledge base using both transcripts and visual frame analysis. Built on the [Karpathy LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern: knowledge compounds with every video you add.
 
 > **Evolved from [mcptube](https://pypi.org/project/mcptube/) v0.1** — mcptube-vision replaces semantic chunk search with a persistent wiki that gets smarter with every video ingested.
 
----
+______________________________________________________________________
 
 ## 🧠 How It Works
 
@@ -38,7 +43,7 @@ Traditional video tools re-discover knowledge from scratch on every query. mcptu
 | **Cross-video** | Re-search all chunks each time | Connections already in the wiki |
 | **Over time** | Library of isolated videos | Compounding knowledge base |
 
----
+______________________________________________________________________
 
 ## 🏗️ Technical Architecture
 
@@ -78,14 +83,14 @@ flowchart TD
         AGENT
     end
 ```
+
 The system overview shows three distinct subsystems connected by a unidirectional data flow. The **Ingestion Pipeline** (left) transforms a raw YouTube URL into structured knowledge through four stages: transcript extraction, scene-change frame detection, vision-model description, and LLM-powered knowledge extraction. Each stage enriches the signal — raw video becomes text, text becomes typed knowledge objects.
 
 The **Knowledge Store** (center) is the persistent layer. The WikiEngine applies merge semantics — deciding whether to create new pages or append to existing ones — then writes JSON files to disk and updates the FTS5 search index in parallel. These two stores serve different access patterns: files for full-page reads and exports, FTS5 for sub-millisecond keyword retrieval.
 
 The **Retrieval** layer (right) combines both stores. The Ask Agent first narrows via FTS5, then loads full pages from disk, and finally reasons over candidates with structural awareness from the wiki TOC. The CLI and MCP Server sit alongside as thin presentation layers — they never contain business logic.
 
-
----
+______________________________________________________________________
 
 ### Ingestion Flow
 
@@ -131,7 +136,7 @@ Second, the WikiEngine merge step is where knowledge compounding happens. Rather
 
 The final FTS5 index update runs synchronously after the file write, ensuring search consistency. There is no eventual-consistency window — once `add_video` returns, all new knowledge is immediately searchable.
 
----
+______________________________________________________________________
 
 ### Retrieval Flow
 
@@ -166,7 +171,7 @@ The second stage loads two types of context for the agent: the **candidate pages
 
 In CLI mode (BYOK), the agent is an LLM call that synthesizes the final answer with source citations. In MCP server mode (passthrough), this stage returns the raw candidates and TOC to the client — letting the client's own model (Copilot, Claude, Gemini) do the reasoning. This dual-mode design means the server never requires an API key when used via MCP.
 
----
+______________________________________________________________________
 
 ### Subsystem Breakdown
 
@@ -180,7 +185,7 @@ In CLI mode (BYOK), the agent is an LLM call that synthesizes the final answer w
 
 **Why this matters:** A transcript of a coding tutorial misses the code on screen. Scene-change vision capture recovers that signal without the token cost of dense fixed-interval sampling.
 
----
+______________________________________________________________________
 
 #### 2. WikiEngine — The Novel Core ⭐
 
@@ -201,40 +206,42 @@ Inspired by the [Karpathy LLM Wiki pattern](https://gist.github.com/karpathy/442
 
 Version history is maintained for all non-immutable pages — every synthesis rewrite is snapshotted, enabling full auditability.
 
----
+______________________________________________________________________
 
 #### 3. Storage Layer
 
 **FileWikiRepository** stores wiki pages as JSON on disk, one file per page. Chosen over a document DB deliberately:
+
 - Human-readable and git-diffable
 - Trivially exportable to markdown/HTML
 - Schema evolution without migrations
 
 **SQLite FTS5** maintains a parallel search index over page titles, tags, and content. Chosen over a vector store because:
+
 - Zero embedding cost at query time
 - Deterministic, auditable results
 - Sub-millisecond latency at thousands of pages
 
 **Why not ChromaDB/Pinecone?** At wiki scale, BM25-style keyword search over *compiled knowledge pages* outperforms semantic similarity over *raw chunks* — the wiki pages are already semantically rich by construction.
 
----
+______________________________________________________________________
 
 #### 4. Hybrid Retrieval Agent ⭐
 
 The `ask` command uses a deliberate two-stage pattern:
 
 1. **FTS5 keyword search** — narrows the full wiki to a small candidate set (milliseconds, zero LLM cost)
-2. **LLM agent** — receives candidates + the wiki table of contents, reasons about relevance, synthesizes a grounded answer with source citations
+1. **LLM agent** — receives candidates + the wiki table of contents, reasons about relevance, synthesizes a grounded answer with source citations
 
 **Why this matters over RAG:** Standard RAG retrieves chunks and generates. The agent here retrieves *compiled knowledge pages* and *reasons*. The wiki TOC gives the agent structural awareness of what knowledge exists — enabling it to correctly say "I don't have information about X" rather than hallucinating from weak chunk matches.
 
----
+______________________________________________________________________
 
 #### 5. MCP Server
 
 Exposes all subsystems as tools consumable by any MCP-compatible client. Report and synthesis tools use a **passthrough pattern** — returning structured data for the client's own LLM to analyse, rather than making a second LLM call server-side. This avoids double-billing and lets the client model apply its own reasoning style.
 
----
+______________________________________________________________________
 
 ### Key Design Decisions
 
@@ -247,7 +254,7 @@ Exposes all subsystems as tools consumable by any MCP-compatible client. Report 
 | Append-only entity updates | Full rewrite | Source attribution preserved; full auditability |
 | Passthrough MCP reports | Server-side LLM | Avoids double-billing; client model reasons |
 
----
+______________________________________________________________________
 
 ## ✨ Features
 
@@ -269,7 +276,7 @@ Exposes all subsystems as tools consumable by any MCP-compatible client. Report 
 **BYOK** = Bring Your Own Key (Anthropic, OpenAI, or Google)
 **Passthrough** = The MCP client's own LLM does the analysis
 
----
+______________________________________________________________________
 
 ## 📦 Installation
 
@@ -298,7 +305,7 @@ pip install mcptube
 mcptube --help
 ```
 
----
+______________________________________________________________________
 
 ## 🚀 Quick Start
 
@@ -325,7 +332,8 @@ mcptube wiki toc
 
 > 💡 **Always wrap multi-word arguments in double quotes.**
 
----
+______________________________________________________________________
+
 ## 📖 CLI Reference
 
 ### Global Options
@@ -352,7 +360,7 @@ mcptube wiki toc
 
 > `<query>` can be a video index number, video ID, or partial title.
 
----
+______________________________________________________________________
 
 ### Wiki Knowledge Base
 
@@ -369,7 +377,7 @@ mcptube wiki toc
 | `mcptube wiki export --format html` | Export all pages as single HTML file | `mcptube wiki export --format html -o wiki.html` |
 | `mcptube wiki export --page <slug>` | Export a single page | `mcptube wiki export --page "entity-openai" -o openai.md` |
 
----
+______________________________________________________________________
 
 ### Search & Ask
 
@@ -378,7 +386,7 @@ mcptube wiki toc
 | `mcptube search "<query>"` | Full-text search, returns page list | `mcptube search "transformers"` |
 | `mcptube ask "<question>"` | Agentic Q&A over wiki (BYOK) | `mcptube ask "What is self-attention?"` |
 
----
+______________________________________________________________________
 
 ### Frames
 
@@ -387,7 +395,7 @@ mcptube wiki toc
 | `mcptube frame <query> <timestamp>` | Extract frame at exact timestamp (seconds) | `mcptube frame 1 30.5` |
 | `mcptube frame-query <query> "<description>"` | Extract frame by transcript match | `mcptube frame-query 1 "when they show the diagram"` |
 
----
+______________________________________________________________________
 
 ### Analysis & Reports (BYOK)
 
@@ -404,7 +412,7 @@ mcptube wiki toc
 | `mcptube synthesize-cmd "<topic>" -v <id> --format html -o <file>` | Save synthesis as HTML | `mcptube synthesize-cmd "AI" -v id1 --format html -o out.html` |
 | `mcptube discover "<topic>"` | Search YouTube, cluster results (no ingest) | `mcptube discover "prompt engineering"` |
 
----
+______________________________________________________________________
 
 ### Server
 
@@ -415,8 +423,7 @@ mcptube wiki toc
 | `mcptube serve --host <host> --port <port>` | Custom host/port |
 | `mcptube serve --reload` | Hot-reload mode for development |
 
-
----
+______________________________________________________________________
 
 ## 🧩 Wiki Page Types
 
@@ -431,30 +438,30 @@ When you ingest a video, mcptube-vision builds four types of wiki pages:
 
 **Principle:** Raw source content (what was said/shown in each video) is never modified. Only synthesis summaries evolve as new videos are added. Version history is maintained for all changes.
 
----
+______________________________________________________________________
 
 ## 🔍 How Search Works (Hybrid Retrieval)
 
 mcptube-vision uses a two-step hybrid approach:
 
 1. **SQLite FTS5** — keyword search narrows thousands of wiki pages to a handful of candidates (milliseconds, zero LLM cost)
-2. **LLM Agent** — reads candidates + wiki table of contents, reasons about relevance, synthesizes an answer
+1. **LLM Agent** — reads candidates + wiki table of contents, reasons about relevance, synthesizes an answer
 
 This gives you the speed of keyword search with the intelligence of an LLM agent.
 
----
+______________________________________________________________________
 
 ## 👁️ Vision Pipeline
 
 When you ingest a video without `--text-only`, mcptube-vision:
 
 1. Extracts key frames using **ffmpeg scene-change detection** (`select='gt(scene,0.4)'`)
-2. Sends frames to a **vision-capable LLM** (GPT-4o, Claude, Gemini) for description
-3. Combines frame descriptions with transcript in the knowledge extraction pass
+1. Sends frames to a **vision-capable LLM** (GPT-4o, Claude, Gemini) for description
+1. Combines frame descriptions with transcript in the knowledge extraction pass
 
 This captures visual content (slides, code, diagrams, demos) that transcripts alone miss.
 
----
+______________________________________________________________________
 
 ## 🔌 MCP Client Setup
 
@@ -467,7 +474,7 @@ mcptube exposes 25+ MCP tools via two transports:
 
 > ℹ️ The MCP server is currently available for **local use only**. You must run `mcptube serve` locally or let the client spawn it.
 
----
+______________________________________________________________________
 
 ### VS Code + GitHub Copilot ✅ Tested
 
@@ -489,7 +496,7 @@ Then start the server in a terminal:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### Claude Code ✅ Tested
 
@@ -503,7 +510,7 @@ Then start the server in a separate terminal:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### Claude Desktop
 
@@ -537,7 +544,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) o
 
 No separate server needed — Claude Desktop spawns the process automatically.
 
----
+______________________________________________________________________
 
 ### Cursor
 
@@ -559,7 +566,7 @@ Then start the server:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### Windsurf
 
@@ -581,7 +588,7 @@ Then start the server:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### OpenAI Codex
 
@@ -598,7 +605,7 @@ Then start the server:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### Gemini CLI
 
@@ -620,7 +627,7 @@ Then start the server:
 mcptube serve
 ```
 
----
+______________________________________________________________________
 
 ### Verify Connection
 
@@ -629,7 +636,6 @@ Once connected, ask your MCP client:
 > use mcptube. list all videos in my library
 
 It should call the `list_videos` tool and return results.
-
 
 ### MCP Tools
 
@@ -654,7 +660,7 @@ It should call the `list_videos` tool and return results.
 | `ask_video` | Single-video Q&A data |
 | `ask_videos` | Multi-video Q&A data |
 
----
+______________________________________________________________________
 
 ## ⚙️ Configuration
 
@@ -690,7 +696,7 @@ mcptube add "https://www.youtube.com/watch?v=..."
 mcptube add "https://www.youtube.com/watch?v=..." --model "openrouter/openrouter/free"
 ```
 
----
+______________________________________________________________________
 
 ## 📁 Data Layout
 
@@ -709,21 +715,39 @@ mcptube add "https://www.youtube.com/watch?v=..." --model "openrouter/openrouter
     └── <id>_scenes/    # Scene-change frames + metadata
 ```
 
----
+______________________________________________________________________
 
 ## 🧪 Development
 
 ```bash
-git clone https://github.com/0xchamin/mcptube.git
+git clone https://github.com/daedalus/mcptube.git
 cd mcptube
-git checkout vision
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[test]"
+
+# run tests
 pytest
+
+# format
+ruff format src/ tests/
+
+# format markdown
+mdformat .
+
+# lint + type check (prospector runs ruff check + mypy + pylint together)
+prospector --with-tool ruff --with-tool mypy --with-tool pylint src/
+opengrep --config=auto --severity=ERROR src/
+
+# find unused code (vulture reports dead code with 90%+ confidence)
+vulture --min-confidence 90 src/
+
+# analyze code complexity (lizard reports cyclomatic complexity, NLOC, etc.)
+lizard src/ --min-cyclomatic-complexity 10
+
+# track API impact (impactguard analyzes how staged changes affect public API)
+impactguard-check-staged
 ```
 
----
+______________________________________________________________________
 
 ## 🗺️ Roadmap
 
@@ -735,8 +759,12 @@ pytest
 - [ ] Web app with early access sign-up
 - [ ] Token-based payment integration
 
----
+______________________________________________________________________
 
 ## 📄 License
 
 MIT — see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+This project was developed by me with the assistance of AI coding tools used for code generation, refactoring, and review. I reviewed, tested, and take responsibility for the final implementation.

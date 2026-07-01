@@ -42,9 +42,21 @@ class TestSQLiteVideoRepository:
         assert videos[0].chapters == []
 
     def test_list_all_ordered_by_added_at(self, sqlite_repo):
-        v1 = Video(video_id="aaa", title="First", added_at=datetime(2025, 1, 1, tzinfo=timezone.utc))
-        v2 = Video(video_id="bbb", title="Second", added_at=datetime(2025, 6, 1, tzinfo=timezone.utc))
-        v3 = Video(video_id="ccc", title="Third", added_at=datetime(2025, 3, 1, tzinfo=timezone.utc))
+        v1 = Video(
+            video_id="aaa",
+            title="First",
+            added_at=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        )
+        v2 = Video(
+            video_id="bbb",
+            title="Second",
+            added_at=datetime(2025, 6, 1, tzinfo=timezone.utc),
+        )
+        v3 = Video(
+            video_id="ccc",
+            title="Third",
+            added_at=datetime(2025, 3, 1, tzinfo=timezone.utc),
+        )
         sqlite_repo.save(v1)
         sqlite_repo.save(v2)
         sqlite_repo.save(v3)

@@ -7,10 +7,10 @@ name = "mcptube"
 version = "0.2.1"
 description = "YouTube video knowledge engine — transcripts, vision, and persistent wiki"
 readme = "README.md"
-license = "MIT"
+license = {text = "MIT"}
 requires-python = ">=3.12,<3.14"
 authors = [
-    { name = "0xchamin", email = "chmk90@gmail.com" },
+    {name = "0xchamin", email = "chmk90@gmail.com"},
 ]
 keywords = ["mcp", "youtube", "ai", "fastmcp", "video", "wiki", "vision"]
 classifiers = [
@@ -31,21 +31,94 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff",
+    "mypy",
+    "hatch",
+    "pip-api",
+    "impactguard",
+    "mdformat",
 ]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-asyncio",
+    "hypothesis",
+]
+lint = [
+    "prospector[with_ruff,with_mypy]",
+    "vulture",
+    "lizard",
+    "mdformat",
+    "impactguard",
+]
+mcp = ["fastmcp"]
+all = ["mcptube[dev,test,lint]"]
 
 [project.scripts]
-mcptube = "mcptube.cli:app"
+mcptube = "mcptube.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/daedalus/mcptube"
+Repository = "https://github.com/daedalus/mcptube"
+Issues = "https://github.com/daedalus/mcptube/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcptube"]
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-asyncio_mode = "auto"
+[tool.hatch.build.targets.sdist]
+include = ["src/mcptube"]
 
 [tool.ruff]
+line-length = 88
 target-version = "py312"
-line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "ANN", "TCH", "N", "C4", "ARG"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.prospector]
+output-format = "text"
+strictness = "medium"
+test-warnings = false
+
+[tool.prospector.tools]
+ruff = true
+mypy = true
+pylint = true
+pyflakes = false  # redundant with ruff's F rules
+pycodestyle = false  # redundant with ruff's E/W rules
+mccabe = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short --cov=src --cov-fail-under=60"
+asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+exclude = ["tests/*", "*/__init__.py"]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

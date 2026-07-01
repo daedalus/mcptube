@@ -25,13 +25,15 @@ def cached_frames(output_dir):
     """Create fake cached scene frames with metadata."""
     frames = []
     for i in range(3):
-        path = output_dir / f"scene_{i+1:04d}.jpg"
+        path = output_dir / f"scene_{i + 1:04d}.jpg"
         path.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)  # fake JPEG header
-        frames.append({
-            "filename": path.name,
-            "timestamp": float(i * 10),
-            "index": i,
-        })
+        frames.append(
+            {
+                "filename": path.name,
+                "timestamp": float(i * 10),
+                "index": i,
+            }
+        )
     meta_path = output_dir / "metadata.json"
     meta_path.write_text(json.dumps(frames, indent=2))
     return frames
@@ -49,7 +51,9 @@ class TestInit:
 
 class TestParseShowinfoTimestamps:
     def test_parse_single_timestamp(self):
-        stderr = "[Parsed_showinfo_2 @ 0x1234] n:   0 pts:  12345 pts_time:1.234 pos:5678\n"
+        stderr = (
+            "[Parsed_showinfo_2 @ 0x1234] n:   0 pts:  12345 pts_time:1.234 pos:5678\n"
+        )
         ts = SceneFrameExtractor._parse_showinfo_timestamps(stderr)
         assert len(ts) == 1
         assert abs(ts[0] - 1.234) < 0.001
@@ -136,7 +140,9 @@ class TestResolveStreamUrl:
         mock_ydl = MagicMock()
         mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
         mock_ydl.__exit__ = MagicMock(return_value=False)
-        mock_ydl.extract_info.return_value = {"url": "https://stream.example.com/video.mp4"}
+        mock_ydl.extract_info.return_value = {
+            "url": "https://stream.example.com/video.mp4"
+        }
         mock_ydl_class.return_value = mock_ydl
 
         url = extractor._resolve_stream_url("abc123")
@@ -170,7 +176,9 @@ class TestExtractWithFfmpeg:
     def test_successful_extraction(self, mock_run, extractor, output_dir):
         # Create fake frame files as if ffmpeg wrote them
         for i in range(2):
-            (output_dir / f"scene_{i+1:04d}.jpg").write_bytes(b"\xff\xd8" + b"\x00" * 50)
+            (output_dir / f"scene_{i + 1:04d}.jpg").write_bytes(
+                b"\xff\xd8" + b"\x00" * 50
+            )
 
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -180,7 +188,9 @@ class TestExtractWithFfmpeg:
             ),
         )
 
-        frames = extractor._extract_with_ffmpeg("https://stream.example.com/v.mp4", output_dir, 50)
+        frames = extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
         assert len(frames) == 2
         assert frames[0]["timestamp"] == 5.0
         assert frames[1]["timestamp"] == 20.0
@@ -189,20 +199,27 @@ class TestExtractWithFfmpeg:
     def test_ffmpeg_failure_no_frames(self, mock_run, extractor, output_dir):
         mock_run.return_value = MagicMock(returncode=1, stderr="Error: invalid input")
         with pytest.raises(SceneFrameError, match="ffmpeg failed"):
-            extractor._extract_with_ffmpeg("https://stream.example.com/v.mp4", output_dir, 50)
+            extractor._extract_with_ffmpeg(
+                "https://stream.example.com/v.mp4", output_dir, 50
+            )
 
     @patch("mcptube.ingestion.scene_frames.subprocess.run")
     def test_ffmpeg_timeout(self, mock_run, extractor, output_dir):
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="ffmpeg", timeout=120)
         with pytest.raises(SceneFrameError, match="timed out"):
-            extractor._extract_with_ffmpeg("https://stream.example.com/v.mp4", output_dir, 50)
+            extractor._extract_with_ffmpeg(
+                "https://stream.example.com/v.mp4", output_dir, 50
+            )
 
     @patch("mcptube.ingestion.scene_frames.subprocess.run")
     def test_ffmpeg_not_found(self, mock_run, extractor, output_dir):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(SceneFrameError, match="ffmpeg not found"):
-            extractor._extract_with_ffmpeg("https://stream.example.com/v.mp4", output_dir, 50)
+            extractor._extract_with_ffmpeg(
+                "https://stream.example.com/v.mp4", output_dir, 50
+            )
 
     @patch("mcptube.ingestion.scene_frames.subprocess.run")
     def test_ffmpeg_nonzero_but_frames_produced(self, mock_run, extractor, output_dir):
@@ -212,7 +229,9 @@ class TestExtractWithFfmpeg:
             returncode=1,
             stderr="[Parsed_showinfo_2 @ 0x1] n:0 pts:0 pts_time:3.000 pos:0\n",
         )
-        frames = extractor._extract_with_ffmpeg("https://stream.example.com/v.mp4", output_dir, 50)
+        frames = extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
         assert len(frames) == 1
 
 
@@ -224,7 +243,9 @@ class TestExtractSceneFrames:
         assert len(frames) == 3
 
     @patch.object(SceneFrameExtractor, "_output_dir")
-    def test_max_frames_limits_cached(self, mock_dir, extractor, output_dir, cached_frames):
+    def test_max_frames_limits_cached(
+        self, mock_dir, extractor, output_dir, cached_frames
+    ):
         mock_dir.return_value = output_dir
         frames = extractor.extract_scene_frames("abc123", max_frames=2)
         assert len(frames) == 2

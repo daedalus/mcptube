@@ -158,7 +158,9 @@ class TestExists:
 
 
 class TestListPages:
-    def test_list_all(self, wiki_repo, sample_video_page, sample_entity_page, sample_topic_page):
+    def test_list_all(
+        self, wiki_repo, sample_video_page, sample_entity_page, sample_topic_page
+    ):
         wiki_repo.save_page(sample_video_page)
         wiki_repo.save_page(sample_entity_page)
         wiki_repo.save_page(sample_topic_page)
@@ -204,7 +206,9 @@ class TestSearch:
         results = wiki_repo.search("quantum computing")
         assert len(results) == 0
 
-    def test_search_limit(self, wiki_repo, sample_video_page, sample_topic_page, sample_entity_page):
+    def test_search_limit(
+        self, wiki_repo, sample_video_page, sample_topic_page, sample_entity_page
+    ):
         wiki_repo.save_page(sample_video_page)
         wiki_repo.save_page(sample_topic_page)
         wiki_repo.save_page(sample_entity_page)

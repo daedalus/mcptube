@@ -40,8 +40,12 @@ def sample_video():
         duration=600.0,
         transcript=[
             TranscriptSegment(start=0.0, duration=5.0, text="Hello and welcome."),
-            TranscriptSegment(start=5.0, duration=10.0, text="Today we discuss transformers."),
-            TranscriptSegment(start=15.0, duration=10.0, text="Attention is all you need."),
+            TranscriptSegment(
+                start=5.0, duration=10.0, text="Today we discuss transformers."
+            ),
+            TranscriptSegment(
+                start=15.0, duration=10.0, text="Attention is all you need."
+            ),
         ],
         tags=["AI", "transformers"],
     )
@@ -176,7 +180,9 @@ class TestExtractRelatedPages:
         result = extractor.extract(sample_video, text_only=True)
 
         video_slug = result["video_page"].slug
-        for page in result["entity_pages"] + result["topic_pages"] + result["concept_pages"]:
+        for page in (
+            result["entity_pages"] + result["topic_pages"] + result["concept_pages"]
+        ):
             assert video_slug in page.related_pages
 
 
@@ -184,9 +190,13 @@ class TestExtractWithFrames:
     def test_full_analysis_tier(self, extractor, mock_llm, sample_video):
         mock_llm._complete = MagicMock(return_value=SAMPLE_LLM_RESPONSE)
         frames = [
-            FrameDescription(filename="scene_0001.jpg", timestamp=5.0, description="Title slide"),
+            FrameDescription(
+                filename="scene_0001.jpg", timestamp=5.0, description="Title slide"
+            ),
         ]
-        result = extractor.extract(sample_video, frame_descriptions=frames, text_only=False)
+        result = extractor.extract(
+            sample_video, frame_descriptions=frames, text_only=False
+        )
         vp = result["video_page"]
 
         assert vp.processing_tier == "full_analysis"
@@ -196,9 +206,13 @@ class TestExtractWithFrames:
     def test_text_only_ignores_frames(self, extractor, mock_llm, sample_video):
         mock_llm._complete = MagicMock(return_value=SAMPLE_LLM_RESPONSE)
         frames = [
-            FrameDescription(filename="scene_0001.jpg", timestamp=5.0, description="Slide"),
+            FrameDescription(
+                filename="scene_0001.jpg", timestamp=5.0, description="Slide"
+            ),
         ]
-        result = extractor.extract(sample_video, frame_descriptions=frames, text_only=True)
+        result = extractor.extract(
+            sample_video, frame_descriptions=frames, text_only=True
+        )
         vp = result["video_page"]
 
         assert vp.processing_tier == "text_only"
@@ -232,14 +246,16 @@ class TestExtractErrorHandling:
         assert result["topic_pages"] == []
         assert result["concept_pages"] == []
 
-    def test_invalid_entity_category_defaults_to_other(self, extractor, mock_llm, sample_video):
-        response = '''{
+    def test_invalid_entity_category_defaults_to_other(
+        self, extractor, mock_llm, sample_video
+    ):
+        response = """{
             "video_summary": "Summary",
             "key_timestamps": {},
             "entities": [{"name": "Foo", "category": "invalid_category", "context": "Bar", "timestamps": []}],
             "topics": [],
             "concepts": []
-        }'''
+        }"""
         mock_llm._complete = MagicMock(return_value=response)
         result = extractor.extract(sample_video, text_only=True)
         assert result["entity_pages"][0].category == EntityCategory.OTHER

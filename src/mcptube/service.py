@@ -62,8 +62,12 @@ class McpTubeService:
         self._discovery: VideoDiscovery | None = None
         self._scene_extractor = scene_extractor or SceneFrameExtractor()
         self._max_frames = max_frames or settings.max_frames
-        frame_cache = FrameCacheDB() if vision_describer is None else vision_describer._cache
-        self._vision_describer = vision_describer or VisionDescriber(self._llm, frame_cache, model=self._llm.model)
+        frame_cache = (
+            FrameCacheDB() if vision_describer is None else vision_describer._cache
+        )
+        self._vision_describer = vision_describer or VisionDescriber(
+            self._llm, frame_cache, model=self._llm.model
+        )
 
         if self._llm.available:
             self._discovery = VideoDiscovery(llm=self._llm)
@@ -103,13 +107,17 @@ class McpTubeService:
         logger.info("Ingesting video: %s", url)
         logger.debug("Extracting URL: %s", url)
         video = self._extractor.extract(url)
-        logger.debug("Extracted video: %s - %s (%s)", video.video_id, video.title, video.duration)
+        logger.debug(
+            "Extracted video: %s - %s (%s)", video.video_id, video.title, video.duration
+        )
         self._repo.save(video)
 
         # Auto-classify if LLM is available
         if self._llm and self._llm.available:
             try:
-                video.tags = self._llm.classify(video.title, video.description, video.channel)
+                video.tags = self._llm.classify(
+                    video.title, video.description, video.channel
+                )
                 self._repo.save(video)
                 logger.info("Auto-classified: %s", video.tags)
             except LLMError as e:
@@ -137,9 +145,13 @@ class McpTubeService:
                 # Only describe frames if we extracted frames AND LLM is available
                 if frame_stats["ffmpeg_extracted"] > 0:
                     try:
-                        frame_descriptions = self._vision_describer.describe_frames(frames)
+                        frame_descriptions = self._vision_describer.describe_frames(
+                            frames
+                        )
                         frame_stats["llm_processed"] = len(frame_descriptions)
-                        logger.info("Vision: described %d frames", len(frame_descriptions))
+                        logger.info(
+                            "Vision: described %d frames", len(frame_descriptions)
+                        )
                     except LLMError as e:
                         logger.warning("Frame description failed: %s", e)
 
@@ -215,7 +227,9 @@ class McpTubeService:
         # Auto-classify if LLM is available
         if self._llm and self._llm.available:
             try:
-                video.tags = self._llm.classify(video.title, video.description, video.channel)
+                video.tags = self._llm.classify(
+                    video.title, video.description, video.channel
+                )
                 self._repo.save(video)
                 logger.info("Auto-classified: %s", video.tags)
             except LLMError as e:
@@ -242,9 +256,13 @@ class McpTubeService:
                 # Only describe frames if we extracted frames AND LLM is available
                 if frame_stats["ffmpeg_extracted"] > 0:
                     try:
-                        frame_descriptions = self._vision_describer.describe_frames(frames)
+                        frame_descriptions = self._vision_describer.describe_frames(
+                            frames
+                        )
                         frame_stats["llm_processed"] = len(frame_descriptions)
-                        logger.info("Vision: described %d frames", len(frame_descriptions))
+                        logger.info(
+                            "Vision: described %d frames", len(frame_descriptions)
+                        )
                     except LLMError as e:
                         logger.warning("Frame description failed: %s", e)
 
@@ -702,4 +720,6 @@ class McpTubeService:
             except OSError as e:
                 logger.warning("Failed to remove scene directory %s: %s", scene_dir, e)
 
-        logger.info("Cleanup complete: removed %d items for video %s", removed_count, video_id)
+        logger.info(
+            "Cleanup complete: removed %d items for video %s", removed_count, video_id
+        )

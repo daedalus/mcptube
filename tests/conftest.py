@@ -25,11 +25,21 @@ SAMPLE_CLASSIFY = '["AI", "Tutorial", "Machine Learning"]'
 def sample_segments():
     """List of TranscriptSegment objects for testing."""
     return [
-        TranscriptSegment(start=0.0, duration=5.0, text="Hello and welcome to this video."),
-        TranscriptSegment(start=5.0, duration=4.5, text="Today we'll talk about machine learning."),
-        TranscriptSegment(start=9.5, duration=6.0, text="Let's start with neural networks."),
-        TranscriptSegment(start=15.5, duration=5.5, text="A neural network has layers of neurons."),
-        TranscriptSegment(start=21.0, duration=4.0, text="Thanks for watching, see you next time."),
+        TranscriptSegment(
+            start=0.0, duration=5.0, text="Hello and welcome to this video."
+        ),
+        TranscriptSegment(
+            start=5.0, duration=4.5, text="Today we'll talk about machine learning."
+        ),
+        TranscriptSegment(
+            start=9.5, duration=6.0, text="Let's start with neural networks."
+        ),
+        TranscriptSegment(
+            start=15.5, duration=5.5, text="A neural network has layers of neurons."
+        ),
+        TranscriptSegment(
+            start=21.0, duration=4.0, text="Thanks for watching, see you next time."
+        ),
     ]
 
 

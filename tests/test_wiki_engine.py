@@ -63,7 +63,9 @@ def sample_video():
         duration=300.0,
         transcript=[
             TranscriptSegment(start=0.0, duration=5.0, text="Welcome to the course."),
-            TranscriptSegment(start=10.0, duration=5.0, text="Neural networks learn from data."),
+            TranscriptSegment(
+                start=10.0, duration=5.0, text="Neural networks learn from data."
+            ),
         ],
         tags=["AI"],
     )
@@ -113,14 +115,22 @@ class TestIngestVideo:
 
     def test_ingest_with_frames(self, engine, wiki_repo, sample_video):
         frames = [
-            FrameDescription(filename="scene_0001.jpg", timestamp=10.0, description="Slide about neurons"),
+            FrameDescription(
+                filename="scene_0001.jpg",
+                timestamp=10.0,
+                description="Slide about neurons",
+            ),
         ]
-        stats = engine.ingest_video(sample_video, frame_descriptions=frames, text_only=False)
+        stats = engine.ingest_video(
+            sample_video, frame_descriptions=frames, text_only=False
+        )
         vp = wiki_repo.get_video_page("vid001")
         assert vp is not None
         assert len(vp.key_frames) == 1
 
-    def test_ingest_second_video_updates_existing(self, engine, wiki_repo, mock_llm, sample_video, sample_video_b):
+    def test_ingest_second_video_updates_existing(
+        self, engine, wiki_repo, mock_llm, sample_video, sample_video_b
+    ):
         engine.ingest_video(sample_video, text_only=True)
 
         mock_llm._complete = MagicMock(return_value=SAMPLE_LLM_EXTRACTION)
@@ -168,7 +178,9 @@ class TestSearch:
 class TestAsk:
     def test_ask_returns_answer(self, engine, wiki_repo, mock_llm, sample_video):
         engine.ingest_video(sample_video, text_only=True)
-        mock_llm._complete = MagicMock(return_value="Neural networks learn from data using backpropagation.")
+        mock_llm._complete = MagicMock(
+            return_value="Neural networks learn from data using backpropagation."
+        )
         answer = engine.ask("How do neural networks learn?")
         assert len(answer) > 0
 
@@ -235,7 +247,9 @@ class TestVersionHistory:
         history = engine.get_page_history("video-vid001")
         assert len(history) == 0
 
-    def test_history_after_update(self, engine, wiki_repo, mock_llm, sample_video, sample_video_b):
+    def test_history_after_update(
+        self, engine, wiki_repo, mock_llm, sample_video, sample_video_b
+    ):
         engine.ingest_video(sample_video, text_only=True)
         mock_llm._complete = MagicMock(return_value=SAMPLE_LLM_EXTRACTION)
         engine.ingest_video(sample_video_b, text_only=True)
@@ -277,7 +291,9 @@ class TestRemoveVideo:
         for c in concepts:
             assert all(contrib.video_id != "vid001" for contrib in c.contributions)
 
-    def test_remove_preserves_multi_video_pages(self, engine, wiki_repo, mock_llm, sample_video, sample_video_b):
+    def test_remove_preserves_multi_video_pages(
+        self, engine, wiki_repo, mock_llm, sample_video, sample_video_b
+    ):
         engine.ingest_video(sample_video, text_only=True)
         mock_llm._complete = MagicMock(return_value=SAMPLE_LLM_EXTRACTION)
         engine.ingest_video(sample_video_b, text_only=True)

@@ -172,7 +172,7 @@ Guidelines:
             processing_tier="text_only" if text_only else "full_analysis",
             summary=data.get("video_summary", ""),
             key_timestamps=raw_ts,
-            #key_frames=frame_descriptions or [],
+            # key_frames=frame_descriptions or [],
             key_frames=[] if text_only else (frame_descriptions or []),
             transcript=transcript_text,
             tags=video.tags,
