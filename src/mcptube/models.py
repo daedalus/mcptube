@@ -48,6 +48,7 @@ class Video(BaseModel):
     height: int = 0  # video height in pixels
     vcodec: str = ""  # video codec (e.g., "avc1")
     acodec: str = ""  # audio codec (e.g., "mp4a")
+    wiki_processed: bool = False  # whether wiki pages were created/updated
 
     @computed_field
     @property

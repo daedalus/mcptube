@@ -31,6 +31,7 @@ class LLMClient:
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
         "OPENROUTER_API_KEY": "openrouter/openrouter/free",
+        "OPENCODE_API_KEY": "openai/big-pickle",
     }
 
     _FALLBACK_MODELS = [
@@ -161,7 +162,11 @@ class LLMClient:
                         "X-Title": "mcptube",
                     },
                 )
-                content = response.choices[0].message.content.strip()
+                content = response.choices[0].message.content
+                # Reasoning models may put output in reasoning_content when content is empty
+                if not content and hasattr(response.choices[0].message, "reasoning_content"):
+                    content = response.choices[0].message.reasoning_content or ""
+                content = content.strip()
                 logger.debug(
                     "LLM response: %s", content[:200] + "..." if len(content) > 200 else content
                 )

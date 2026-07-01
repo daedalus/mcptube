@@ -47,9 +47,9 @@ Example: ["Frame shows a title slide reading 'Introduction to LLMs'", "Presenter
 
 Return ONLY the JSON array. No markdown, no explanation."""
 
-    def __init__(self, llm: LLMClient, cache: FrameCacheDB | None = None) -> None:
+    def __init__(self, llm: LLMClient, cache: FrameCacheDB | None = None, model: str | None = None) -> None:
         self._llm = llm
-        self._model = self._detect_vision_model()
+        self._model = model or self._detect_vision_model()
         self._cache = cache
 
     def describe_frames(self, frames: list[dict]) -> list[FrameDescription]:
@@ -69,6 +69,18 @@ Return ONLY the JSON array. No markdown, no explanation."""
 
         if not frames:
             return []
+
+        # Skip vision if no vision-capable model is available
+        if not self._model or not self._is_vision_capable(self._model):
+            logger.warning("No vision-capable model available (model: %s), skipping frame descriptions", self._model)
+            return [
+                FrameDescription(
+                    filename=frame["path"].name,
+                    timestamp=frame["timestamp"],
+                    description="(vision model not available)",
+                )
+                for frame in frames
+            ]
 
         # For small batches, describe individually for better quality
         # For larger batches, use batch mode to save cost
@@ -233,12 +245,21 @@ Return ONLY the JSON array. No markdown, no explanation."""
             )
         return descriptions
 
-    def _detect_vision_model(self) -> str:
-        """Auto-detect the best available vision-capable model."""
+    def _detect_vision_model(self) -> str | None:
+        """Auto-detect the best available vision-capable model.
+
+        Returns None if no vision-capable model is available.
+        """
         import os
 
         for key, model in self._VISION_MODELS.items():
             if os.environ.get(key):
                 logger.info("Vision model: %s → %s", key, model)
                 return model
-        return "gpt-4o"
+        return None
+
+    @staticmethod
+    def _is_vision_capable(model: str) -> bool:
+        """Check if a model supports vision (multimodal) inputs."""
+        vision_keywords = ["gpt-4o", "gpt-4v", "claude-3", "claude-sonnet-4", "gemini", "llava", "vision"]
+        return any(kw in model.lower() for kw in vision_keywords)

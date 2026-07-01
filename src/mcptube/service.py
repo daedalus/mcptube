@@ -63,7 +63,7 @@ class McpTubeService:
         self._scene_extractor = scene_extractor or SceneFrameExtractor()
         self._max_frames = max_frames or settings.max_frames
         frame_cache = FrameCacheDB() if vision_describer is None else vision_describer._cache
-        self._vision_describer = vision_describer or VisionDescriber(self._llm, frame_cache)
+        self._vision_describer = vision_describer or VisionDescriber(self._llm, frame_cache, model=self._llm.model)
 
         if self._llm.available:
             self._discovery = VideoDiscovery(llm=self._llm)
@@ -146,6 +146,7 @@ class McpTubeService:
                 stats = self._wiki.ingest_video(
                     video, frame_descriptions=frame_descriptions, text_only=text_only
                 )
+                video.wiki_processed = True
                 logger.info("Wiki ingest: %s", stats)
             except LLMError as e:
                 logger.warning("Wiki ingest failed: %s", e)
@@ -250,6 +251,7 @@ class McpTubeService:
                 stats = self._wiki.ingest_video(
                     video, frame_descriptions=frame_descriptions, text_only=text_only
                 )
+                video.wiki_processed = True
                 logger.info("Wiki ingest: %s", stats)
             except LLMError as e:
                 logger.warning("Wiki ingest failed: %s", e)

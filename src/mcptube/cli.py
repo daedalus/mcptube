@@ -206,6 +206,11 @@ def add(
             reprocessed_video = svc.reprocess_video(video_id, text_only=text_only)
             typer.echo(f"✅ Re-processed: {reprocessed_video.title}")
             typer.echo(f"   Segments: {len(reprocessed_video.transcript)}")
+            tier = "text-only" if text_only else "full analysis"
+            if reprocessed_video.wiki_processed:
+                typer.echo(f"   Wiki:     ✅ (processed: {tier})")
+            else:
+                typer.echo(f"   Wiki:     ⏭️  (skipped — no LLM configured)")
             if _show_frame_stats:
                 if reprocessed_video.frame_stats:
                     typer.echo(

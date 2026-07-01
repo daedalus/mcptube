@@ -9,13 +9,13 @@ import random
 
 proxy = "http://172.29.99.99:3128"
 model = "openrouter/openrouter/auto"
-
+randomize = False
 
 def main():
     ids = json.load(open("scripts/history.json"))
     print(f"Processing {len(ids)} videos...", file=sys.stderr)
 
-    random.shuffle(ids)
+    if randomize: random.shuffle(ids)
 
     for i, vid in enumerate(ids):
         url = f"https://www.youtube.com/watch?v={vid}"

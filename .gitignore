@@ -47,3 +47,4 @@ dist/
 test.md
 *.mp4
 litellm_config.yaml
+scripts/history.json

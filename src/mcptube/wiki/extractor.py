@@ -143,7 +143,7 @@ Guidelines:
             transcript=transcript_text,
         )
 
-        raw = self._llm._complete(prompt, max_tokens=8192)
+        raw = self._llm._complete(prompt, max_tokens=16384)
         data = self._parse_response(raw)
 
         return self._build_pages(video, data, frame_descriptions, text_only)
@@ -160,6 +160,9 @@ Guidelines:
         transcript_text = self._format_transcript(video)
 
         # --- Video Page (write-once) ---
+        raw_ts = data.get("key_timestamps", {})
+        if isinstance(raw_ts, list):
+            raw_ts = {ts: "" for ts in raw_ts}
         video_page = VideoPage(
             slug=f"video-{video.video_id}",
             title=video.title,
@@ -168,7 +171,7 @@ Guidelines:
             duration=video.duration,
             processing_tier="text_only" if text_only else "full_analysis",
             summary=data.get("video_summary", ""),
-            key_timestamps=data.get("key_timestamps", {}),
+            key_timestamps=raw_ts,
             #key_frames=frame_descriptions or [],
             key_frames=[] if text_only else (frame_descriptions or []),
             transcript=transcript_text,

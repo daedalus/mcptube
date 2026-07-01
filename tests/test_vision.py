@@ -19,7 +19,7 @@ def mock_llm():
 
 @pytest.fixture
 def describer(mock_llm):
-    return VisionDescriber(mock_llm)
+    return VisionDescriber(mock_llm, model="gpt-4o")
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ class TestDescribeFrames:
 
     def test_unavailable_llm_raises(self, mock_llm):
         mock_llm.available = False
-        d = VisionDescriber(mock_llm)
+        d = VisionDescriber(mock_llm, model="gpt-4o")
         with pytest.raises(LLMError):
             d.describe_frames([{"path": Path("x.jpg"), "timestamp": 0.0, "index": 0}])
 
@@ -272,13 +272,13 @@ class TestVisionDescriberWithCache:
 
     @pytest.fixture
     def describer_with_cache(self, mock_llm, cache):
-        return VisionDescriber(mock_llm, cache)
+        return VisionDescriber(mock_llm, cache, model="gpt-4o")
 
     @patch("mcptube.ingestion.vision.litellm.completion")
     def test_describe_single_frame_uses_cache(self, mock_completion, mock_llm, cache, tmp_path):
         path = tmp_path / "frame.jpg"
         path.write_bytes(b"fake jpeg")
-        describer = VisionDescriber(mock_llm, cache)
+        describer = VisionDescriber(mock_llm, cache, model="gpt-4o")
 
         mock_completion.return_value = MagicMock(
             choices=[MagicMock(message=MagicMock(content="First call"))]
@@ -300,7 +300,7 @@ class TestVisionDescriberWithCache:
         db = FrameCacheDB(tmp_path / "cache.db")
         db.put(path, "Cached description")
 
-        describer = VisionDescriber(mock_llm, db)
+        describer = VisionDescriber(mock_llm, db, model="gpt-4o")
 
         result = describer._describe_single_frame(path)
         assert result == "Cached description"
