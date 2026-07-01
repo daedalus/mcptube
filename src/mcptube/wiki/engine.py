@@ -157,28 +157,9 @@ Guidelines:
 
     # --- Cleanup ---
 
-    def remove_video(self, video_id: str) -> int:
-        """Remove a video's wiki page and clean references from other pages.
-
-        Note: Does NOT remove entity/topic/concept pages — they may
-        have contributions from other videos. Only removes the video
-        page itself and the specific video's contributions.
-
-        Args:
-            video_id: YouTube video ID.
-
-        Returns:
-            Number of pages modified.
-        """
+    def _clean_entity_references(self, video_id: str, video_slug: str) -> int:
+        """Remove a video's references from entity pages. Returns pages modified."""
         modified = 0
-        video_slug = f"video-{video_id}"
-
-        # Delete the video page
-        if self._repo.exists(video_slug):
-            self._repo.delete_page(video_slug)
-            modified += 1
-
-        # Clean references from entity pages
         for page in self._repo.list_pages(page_type=WikiPageType.ENTITY):
             from mcptube.wiki.models import EntityPage
 
@@ -196,8 +177,11 @@ Guidelines:
                 else:
                     self._repo.save_page(page)
                 modified += 1
+        return modified
 
-        # Clean contributions from topic/concept pages
+    def _clean_topic_concept_contributions(self, video_id: str, video_slug: str) -> int:
+        """Remove a video's contributions from topic/concept pages. Returns pages modified."""
+        modified = 0
         for page_type in (WikiPageType.TOPIC, WikiPageType.CONCEPT):
             for page in self._repo.list_pages(page_type=page_type):
                 if not hasattr(page, "contributions"):
@@ -214,6 +198,30 @@ Guidelines:
                     else:
                         self._repo.save_page(page)
                     modified += 1
+        return modified
+
+    def remove_video(self, video_id: str) -> int:
+        """Remove a video's wiki page and clean references from other pages.
+
+        Note: Does NOT remove entity/topic/concept pages — they may
+        have contributions from other videos. Only removes the video
+        page itself and the specific video's contributions.
+
+        Args:
+            video_id: YouTube video ID.
+
+        Returns:
+            Number of pages modified.
+        """
+        modified = 0
+        video_slug = f"video-{video_id}"
+
+        if self._repo.exists(video_slug):
+            self._repo.delete_page(video_slug)
+            modified += 1
+
+        modified += self._clean_entity_references(video_id, video_slug)
+        modified += self._clean_topic_concept_contributions(video_id, video_slug)
 
         logger.info("Removed video %s from wiki: %d pages modified", video_id, modified)
         return modified

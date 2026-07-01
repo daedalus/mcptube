@@ -501,6 +501,36 @@ class McpTubeService:
         )
         return report, rendered
 
+    def _collect_video_ids_from_pages(self, pages: list) -> list[str]:
+        """Extract unique video IDs from wiki search results."""
+        from mcptube.wiki.models import VideoPage
+
+        video_ids = []
+        for page in pages:
+            if isinstance(page, VideoPage):
+                if page.video_id not in video_ids:
+                    video_ids.append(page.video_id)
+            elif hasattr(page, "contributions"):
+                for c in page.contributions:
+                    if c.video_id not in video_ids:
+                        video_ids.append(c.video_id)
+            elif hasattr(page, "video_references"):
+                for r in page.video_references:
+                    if r.video_id not in video_ids:
+                        video_ids.append(r.video_id)
+        return video_ids
+
+    def _collect_wiki_frames(self, video_ids: list[str]) -> dict:
+        """Collect key frames from wiki VideoPages for report illustration."""
+        from mcptube.wiki.models import VideoPage
+
+        wiki_frames = {}
+        for vid in video_ids:
+            page = self._wiki.get_page(f"video-{vid}")
+            if isinstance(page, VideoPage) and page.key_frames:
+                wiki_frames[vid] = page.key_frames
+        return wiki_frames
+
     def generate_report_from_query(
         self, query: str, tags: list[str] | None = None, fmt: str = "markdown"
     ) -> tuple[Report, str]:
@@ -514,35 +544,12 @@ class McpTubeService:
         if not self._wiki:
             raise RuntimeError("Query-based reports require a wiki engine.")
 
-        # Find relevant videos via wiki search
         pages = self._wiki.search(query, limit=20)
-        video_ids = []
-        for page in pages:
-            from mcptube.wiki.models import VideoPage
-
-            if isinstance(page, VideoPage):
-                video_ids.append(page.video_id)
-            elif hasattr(page, "contributions"):
-                for c in page.contributions:
-                    if c.video_id not in video_ids:
-                        video_ids.append(c.video_id)
-            elif hasattr(page, "video_references"):
-                for r in page.video_references:
-                    if r.video_id not in video_ids:
-                        video_ids.append(r.video_id)
-
-        from mcptube.wiki.models import VideoPage
-
-        # Collect key frames from wiki VideoPages
-        wiki_frames = {}
-        for vid in video_ids:
-            page = self._wiki.get_page(f"video-{vid}")
-            if isinstance(page, VideoPage) and page.key_frames:
-                wiki_frames[vid] = page.key_frames
-
+        video_ids = self._collect_video_ids_from_pages(pages)
         if not video_ids:
             raise VideoNotFoundError(f"No matching content for: {query}")
 
+        wiki_frames = self._collect_wiki_frames(video_ids)
         videos = [self.get_info(vid) for vid in video_ids]
         report = self._report_builder.generate_multi(videos, query)
         rendered = (

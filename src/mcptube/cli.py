@@ -194,6 +194,40 @@ def _resolve_or_exit(svc: McpTubeService, query: str):
 # --- Library Management ---
 
 
+def _print_video_summary(video, text_only: bool, prefix: str = "   ") -> None:
+    """Print video metadata summary after ingest or reprocess."""
+    tier = "text-only" if text_only else "full analysis"
+    typer.echo(f"{prefix}Wiki:     ✅ (processed: {tier})")
+    if video.tags:
+        typer.echo(f"{prefix}Tags:     {', '.join(video.tags)}")
+
+
+def _print_frame_stats(video) -> None:
+    """Print frame extraction and video format stats if enabled."""
+    if not _show_frame_stats:
+        return
+    if video.frame_stats:
+        typer.echo(
+            f"   Frames:   ffmpeg: {video.frame_stats.get('ffmpeg_extracted', 0)}, "
+            f"LLM: {video.frame_stats.get('llm_processed', 0)}"
+        )
+    if not (video.format or video.file_size or video.width):
+        return
+    stats_parts = []
+    if video.format:
+        stats_parts.append(video.format)
+    if video.file_size:
+        stats_parts.append(f"{video.file_size / (1024 * 1024):.1f}MB")
+    if video.width and video.height:
+        stats_parts.append(f"{video.width}x{video.height}")
+    if video.vcodec:
+        stats_parts.append(f"v:{video.vcodec}")
+    if video.acodec:
+        stats_parts.append(f"a:{video.acodec}")
+    if stats_parts:
+        typer.echo(f"   Video:    {', '.join(stats_parts)}")
+
+
 @app.command()
 def add(
     url: str = typer.Argument(..., help="YouTube video URL to ingest."),
@@ -216,41 +250,11 @@ def add(
     if reprocess and svc._repo.exists(video_id):
         typer.echo(f"🔄 Re-processing: {url}")
         try:
-            reprocessed_video = svc.reprocess_video(video_id, text_only=text_only)
-            typer.echo(f"✅ Re-processed: {reprocessed_video.title}")
-            typer.echo(f"   Segments: {len(reprocessed_video.transcript)}")
-            tier = "text-only" if text_only else "full analysis"
-            if reprocessed_video.wiki_processed:
-                typer.echo(f"   Wiki:     ✅ (processed: {tier})")
-            else:
-                typer.echo(f"   Wiki:     ⏭️  (skipped — no LLM configured)")
-            if _show_frame_stats:
-                if reprocessed_video.frame_stats:
-                    typer.echo(
-                        f"   Frames:   ffmpeg: {reprocessed_video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {reprocessed_video.frame_stats.get('llm_processed', 0)}"
-                    )
-                if (
-                    reprocessed_video.format
-                    or reprocessed_video.file_size
-                    or reprocessed_video.width
-                ):
-                    stats_parts = []
-                    if reprocessed_video.format:
-                        stats_parts.append(reprocessed_video.format)
-                    if reprocessed_video.file_size:
-                        stats_parts.append(
-                            f"{reprocessed_video.file_size / (1024 * 1024):.1f}MB"
-                        )
-                    if reprocessed_video.width and reprocessed_video.height:
-                        stats_parts.append(
-                            f"{reprocessed_video.width}x{reprocessed_video.height}"
-                        )
-                    if reprocessed_video.vcodec:
-                        stats_parts.append(f"v:{reprocessed_video.vcodec}")
-                    if reprocessed_video.acodec:
-                        stats_parts.append(f"a:{reprocessed_video.acodec}")
-                    if stats_parts:
-                        typer.echo(f"   Video:    {', '.join(stats_parts)}")
+            video = svc.reprocess_video(video_id, text_only=text_only)
+            typer.echo(f"✅ Re-processed: {video.title}")
+            typer.echo(f"   Segments: {len(video.transcript)}")
+            _print_video_summary(video, text_only)
+            _print_frame_stats(video)
         except Exception as e:
             typer.echo(f"❌ Re-processing failed: {e}", err=True)
             raise typer.Exit(code=1)
@@ -263,30 +267,8 @@ def add(
         typer.echo(f"   Channel:  {video.channel}")
         typer.echo(f"   Duration: {video.duration:.0f}s")
         typer.echo(f"   Segments: {len(video.transcript)}")
-        if video.tags:
-            typer.echo(f"   Tags:     {', '.join(video.tags)}")
-        tier = "text-only" if text_only else "full analysis"
-        typer.echo(f"   Wiki:     ✅ (processed: {tier})")
-        if _show_frame_stats:
-            if video.frame_stats:
-                typer.echo(
-                    f"   Frames:   ffmpeg: {video.frame_stats.get('ffmpeg_extracted', 0)}, LLM: {video.frame_stats.get('llm_processed', 0)}"
-                )
-            if video.format or video.file_size or video.width:
-                stats_parts = []
-                if video.format:
-                    stats_parts.append(video.format)
-                if video.file_size:
-                    stats_parts.append(f"{video.file_size / (1024 * 1024):.1f}MB")
-                if video.width and video.height:
-                    stats_parts.append(f"{video.width}x{video.height}")
-                if video.vcodec:
-                    stats_parts.append(f"v:{video.vcodec}")
-                if video.acodec:
-                    stats_parts.append(f"a:{video.acodec}")
-                if stats_parts:
-                    typer.echo(f"   Video:    {', '.join(stats_parts)}")
-
+        _print_video_summary(video, text_only)
+        _print_frame_stats(video)
         if _cleanup_if_successful:
             svc.cleanup_video_files(video.video_id)
             typer.echo("   Cleanup:  🗑️  (removed downloaded files)")

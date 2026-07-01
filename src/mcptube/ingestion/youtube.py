@@ -215,6 +215,29 @@ class YouTubeExtractor:
                 ) from e
             raise ExtractionError(f"Failed to extract video info: {e}") from e
 
+    @staticmethod
+    def _height_to_label(height: int) -> str:
+        """Convert pixel height to a user-friendly format label."""
+        thresholds = [
+            (2160, "4K"),
+            (1440, "2K"),
+            (1080, "1080p"),
+            (720, "720p"),
+            (480, "480p"),
+        ]
+        for min_h, label in thresholds:
+            if height >= min_h:
+                return label
+        return f"{height}p"
+
+    @staticmethod
+    def _clean_codec(raw: str, aliases: dict[str, str]) -> str:
+        """Extract short codec name from yt-dlp raw value."""
+        if not raw or raw == "none":
+            return ""
+        short = raw.split(".")[0]
+        return aliases.get(short, short)
+
     def _extract_video_stats(self, info: dict) -> dict:
         """Extract video format and size info from yt-dlp info dict."""
         result = {
@@ -225,52 +248,28 @@ class YouTubeExtractor:
             "vcodec": "",
             "acodec": "",
         }
-        # Try to get format info from requested_formats or formats list
         formats = info.get("formats") or []
-        # Get the best quality format (usually last with video)
         best = formats[-1] if formats else {}
+        if not best:
+            return result
 
-        if best:
-            # Resolution
-            resolution = best.get("resolution", "")
-            if resolution and "x" in resolution:
-                w, h = resolution.split("x")
-                result["width"] = int(w) if w.isdigit() else 0
-                result["height"] = int(h) if h.isdigit() else 0
+        resolution = best.get("resolution", "")
+        if resolution and "x" in resolution:
+            w, h = resolution.split("x")
+            result["width"] = int(w) if w.isdigit() else 0
+            result["height"] = int(h) if h.isdigit() else 0
+            result["format"] = self._height_to_label(result["height"])
 
-                # Convert to user-friendly format label
-                h_int = result["height"]
-                if h_int >= 2160:
-                    result["format"] = "4K"
-                elif h_int >= 1440:
-                    result["format"] = "2K"
-                elif h_int >= 1080:
-                    result["format"] = "1080p"
-                elif h_int >= 720:
-                    result["format"] = "720p"
-                elif h_int >= 480:
-                    result["format"] = "480p"
-                else:
-                    result["format"] = f"{h_int}p"
+        result["file_size"] = int(best.get("filesize", 0) or 0)
+        if result["file_size"] == 0:
+            result["file_size"] = int(best.get("filesize_approx", 0) or 0)
 
-            # File size
-            result["file_size"] = int(best.get("filesize", 0) or 0)
-            if result["file_size"] == 0:
-                result["file_size"] = int(best.get("filesize_approx", 0) or 0)
-
-            # Codecs
-            vcodec = best.get("vcodec", "")
-            if vcodec and vcodec != "none":
-                # Extract short codec name (e.g., "avc1.64001F" -> "avc1")
-                result["vcodec"] = (
-                    vcodec.split(".")[0].replace("vp9", "vp9").replace("av01", "av1")
-                )
-            acodec = best.get("acodec", "")
-            if acodec and acodec != "none":
-                result["acodec"] = (
-                    acodec.split(".")[0].replace("mp4a", "aac").replace("opus", "opus")
-                )
-
+        result["vcodec"] = self._clean_codec(
+            best.get("vcodec", ""), {"vp9": "vp9", "av01": "av1"}
+        )
+        result["acodec"] = self._clean_codec(
+            best.get("acodec", ""), {"mp4a": "aac", "opus": "opus"}
+        )
         return result
 
     def _extract_transcript(self, info: dict) -> list[TranscriptSegment]:
