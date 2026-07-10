@@ -142,6 +142,7 @@ Guidelines:
 - Create 2-5 meaningful clusters (e.g. "Tutorials", "Conference Talks", "Debates", "Explainers")
 - Each video should appear in exactly one cluster
 - Cluster names should be descriptive and useful
+- Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth
 - No markdown, no explanation"""
 
         raw = self._llm._complete(prompt, max_tokens=2048)

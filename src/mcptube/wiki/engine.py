@@ -129,6 +129,7 @@ Guidelines:
 - Cite video sources when referencing specific information
 - If the wiki doesn't contain enough information, say so
 - If multiple videos offer different perspectives, present all of them
+- Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth
 - Be thorough but concise"""
 
         return self._llm._complete(prompt, max_tokens=4096)

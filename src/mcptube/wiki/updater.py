@@ -40,6 +40,7 @@ Write a concise synthesis (3-6 sentences) that:
 - Notes agreements and disagreements between sources
 - Highlights how understanding of this {page_type} has evolved across videos
 - Does NOT favour any single source
+- Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth
 
 Return ONLY the synthesis text. No markdown formatting, no headers."""
 
@@ -55,6 +56,7 @@ Write a concise overview (2-4 sentences) that:
 - Summarises who/what this entity is based on the video references
 - Notes different contexts in which this entity appears
 - Captures the most important facts mentioned
+- Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth
 
 Return ONLY the overview text. No markdown formatting, no headers."""
 

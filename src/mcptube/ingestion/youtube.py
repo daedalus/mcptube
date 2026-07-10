@@ -44,8 +44,9 @@ def _translate_to_english(text: str, source_lang: str) -> str:
 
     try:
         llm = get_llm()
-        prompt = f"""Translate the following text from {source_lang} to English. 
-        Only return the translated text, no explanations or additional formatting:
+        prompt = f"""Translate the following text from {source_lang} to English.
+        Only return the translated text, no explanations or additional formatting.
+        Preserve any epistemic markers (e.g. hedging, speculation, claims of fact) exactly as written:
 
         {text}"""
 

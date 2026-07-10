@@ -88,6 +88,7 @@ class LLMClient:
             f"Channel: {channel}\n"
             f"Description: {description[:500]}\n\n"
             'Return ONLY a JSON array of strings, e.g. ["AI", "LLM", "Tutorial"]. '
+            "Always differentiate factual from non-factual content. "
             "No explanation, no markdown."
         )
         logger.debug("LLM classify request for: %s", title)
@@ -118,6 +119,8 @@ class LLMClient:
             "specific moments. If the answer cannot be found in the transcripts, say so.\n\n"
             f"TRANSCRIPTS:\n{video_blocks}\n\n"
             f"QUESTION: {question}\n\n"
+            "Always differentiate factual claims from non-factual content, fiction from non-fiction, "
+            "and speculation from well-grounded truth. "
             "Provide a clear, well-structured answer."
         )
         return self._complete(prompt)

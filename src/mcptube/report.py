@@ -224,6 +224,7 @@ class ReportBuilder:
         - Select frames at moments with visual significance (slides, diagrams, code, demos)
         - Each section can have 0, 1, or multiple frames — only where visually meaningful
         - Include 3-6 key takeaways
+        - Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth; flag when the source itself is speculative
         - No markdown in JSON values"""
 
     def _build_multi_prompt(
@@ -276,6 +277,7 @@ class ReportBuilder:
         - Select frames from across different videos where visually significant
         - Each section can have 0, 1, or multiple frames — only where visually meaningful
         - Include 3-6 key takeaways
+        - Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth; flag when the source itself is speculative
         - No markdown in JSON values"""
 
     def _parse_report(self, raw: str, default_video_id: str | None) -> Report:

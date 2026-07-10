@@ -36,7 +36,8 @@ Focus on what is visually significant:
 - People: describe what they are doing (presenting, demoing, etc.)
 - UI/demos: describe the application or tool shown
 
-Be factual and specific. No speculation."""
+Be factual and specific. No speculation.
+Always differentiate factual content from speculation."""
 
     _BATCH_PROMPT = """You are analyzing frames from a YouTube video. For each frame,
 provide a concise 1-3 sentence description focusing on visually significant content

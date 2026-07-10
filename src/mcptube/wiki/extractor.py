@@ -96,6 +96,7 @@ Guidelines:
 - Timestamps should reference actual [MM:SS] values from the transcript
 - Content should capture what THIS VIDEO specifically says — not general knowledge
 - Be thorough but only include entities/topics/concepts with meaningful discussion
+- Always differentiate factual claims from non-factual content, fiction from non-fiction, and speculation from well-grounded truth; flag when the source itself is speculative
 - No markdown in JSON values"""
 
     def __init__(self, llm: LLMClient) -> None:
