@@ -36,6 +36,24 @@ class TestParseVideoId:
             == "BpibZSMGtdY"
         )
 
+    def test_shorts_url(self):
+        assert (
+            YouTubeExtractor.parse_video_id(
+                "https://www.youtube.com/shorts/R70SRdWxgkc"
+            )
+            == "R70SRdWxgkc"
+        )
+
+    def test_shorts_url_with_query(self):
+        url = "https://www.youtube.com/shorts/R70SRdWxgkc?si=abc123"
+        assert YouTubeExtractor.parse_video_id(url) == "R70SRdWxgkc"
+
+    def test_live_url(self):
+        assert (
+            YouTubeExtractor.parse_video_id("https://www.youtube.com/live/R70SRdWxgkc")
+            == "R70SRdWxgkc"
+        )
+
     def test_watch_url_with_extras(self):
         url = "https://www.youtube.com/watch?v=BpibZSMGtdY&t=120&list=PLxyz"
         assert YouTubeExtractor.parse_video_id(url) == "BpibZSMGtdY"
@@ -73,7 +91,7 @@ class TestExtract:
         return {"en": [{"ext": "json3", "url": url}]}
 
     @patch("mcptube.ingestion.youtube.urlopen")
-    @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
+    @patch("mcptube.ingestion.yt_session.yt_dlp.YoutubeDL")
     def test_extract_returns_video(self, mock_ydl_class, mock_urlopen):
         json3 = self._make_json3([(0, 5000, "Hello"), (5000, 4000, "World")])
         import json
@@ -98,7 +116,7 @@ class TestExtract:
         assert len(video.transcript) == 2
         assert video.transcript[0].text == "Hello"
 
-    @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
+    @patch("mcptube.ingestion.yt_session.yt_dlp.YoutubeDL")
     def test_extract_with_chapters(self, mock_ydl_class):
         chapters = [
             {"title": "Intro", "start_time": 0},
@@ -116,7 +134,7 @@ class TestExtract:
         assert video.chapters[0].title == "Intro"
         assert video.chapters[1].start == 30.0
 
-    @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
+    @patch("mcptube.ingestion.yt_session.yt_dlp.YoutubeDL")
     def test_extract_no_transcript(self, mock_ydl_class):
         info = self._make_info()
         mock_ydl = MagicMock()
@@ -129,7 +147,7 @@ class TestExtract:
         assert video.transcript == []
 
     @patch("mcptube.ingestion.youtube.urlopen")
-    @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
+    @patch("mcptube.ingestion.yt_session.yt_dlp.YoutubeDL")
     def test_extract_prefers_manual_subs(self, mock_ydl_class, mock_urlopen):
         import json
 
@@ -153,7 +171,7 @@ class TestExtract:
         video = extractor.extract("https://www.youtube.com/watch?v=BpibZSMGtdY")
         assert video.transcript[0].text == "Manual sub"
 
-    @patch("mcptube.ingestion.youtube.yt_dlp.YoutubeDL")
+    @patch("mcptube.ingestion.yt_session.yt_dlp.YoutubeDL")
     def test_extract_download_error(self, mock_ydl_class):
         mock_ydl = MagicMock()
         mock_ydl.extract_info.side_effect = yt_dlp.utils.DownloadError("Network error")

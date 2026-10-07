@@ -1,4 +1,4 @@
-"""Frame extraction from YouTube videos via yt-dlp + ffmpeg."""
+"""Frame extraction from videos via yt-dlp + ffmpeg."""
 
 import logging
 import subprocess
@@ -7,6 +7,7 @@ from pathlib import Path
 import yt_dlp
 
 from mcptube.config import settings
+from mcptube.ingestion.yt_session import build_ydl_opts, extract_info_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +17,23 @@ class FrameExtractionError(Exception):
 
 
 class FrameExtractor:
-    """Extracts individual frames from YouTube videos.
+    """Extracts individual frames from videos.
 
     Uses yt-dlp to resolve direct stream URLs (ffmpeg cannot read
-    YouTube page URLs directly), then ffmpeg to seek and extract
+    page URLs directly), then ffmpeg to seek and extract
     a single frame. Frames are cached on disk to avoid re-extraction.
     """
 
-    def extract_frame(self, video_id: str, timestamp: float) -> Path:
+    def extract_frame(
+        self, video_id: str, timestamp: float, source_url: str = ""
+    ) -> Path:
         """Extract a single frame at the given timestamp.
 
         Args:
-            video_id: YouTube video ID.
+            video_id: Namespaced video ID (used for cache path).
             timestamp: Time in seconds to extract frame at.
+            source_url: Canonical URL of the video (YouTube, TikTok, etc.).
+                        If empty, falls back to YouTube URL from video_id.
 
         Returns:
             Path to the extracted JPEG frame.
@@ -43,39 +48,39 @@ class FrameExtractor:
             return cache_path
 
         # Resolve direct stream URL via yt-dlp
-        stream_url = self._resolve_stream_url(video_id)
+        stream_url = self._resolve_stream_url(source_url or video_id)
 
         # Extract frame via ffmpeg
         self._extract_with_ffmpeg(stream_url, timestamp, cache_path)
 
         return cache_path
 
-    def _resolve_stream_url(self, video_id: str) -> str:
-        """Resolve a direct stream URL from a YouTube video ID."""
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": "best[ext=mp4]/best",
-            "skip_download": True,
-        }
-        if settings.cookies_file:
-            ydl_opts["cookies"] = str(settings.cookies_file)
-        if settings.js_runtimes:
-            ydl_opts["js-runtimes"] = settings.js_runtimes
+    def _resolve_stream_url(self, source: str) -> str:
+        """Resolve a direct stream URL from a video URL or ID.
+
+        Args:
+            source: A full video URL, or a YouTube video ID (legacy).
+        """
+        # If it looks like a URL, use it directly; otherwise build a YouTube URL
+        if source.startswith("http"):
+            url = source
+        else:
+            url = f"https://www.youtube.com/watch?v={source}"
+
+        ydl_opts = build_ydl_opts(
+            {
+                "format": "best[ext=mp4]/best",
+            }
+        )
+
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if info is None:
-                    raise FrameExtractionError(
-                        f"yt-dlp returned no info for: {video_id}"
-                    )
-                stream_url = info.get("url")
-                if not stream_url:
-                    raise FrameExtractionError(
-                        f"No stream URL resolved for: {video_id}"
-                    )
-                return stream_url
+            info = extract_info_with_retry(url, ydl_opts)
+            if info is None:
+                raise FrameExtractionError(f"yt-dlp returned no info for: {source}")
+            stream_url = info.get("url")
+            if not stream_url:
+                raise FrameExtractionError(f"No stream URL resolved for: {source}")
+            return stream_url
         except yt_dlp.utils.DownloadError as e:
             raise FrameExtractionError(f"Failed to resolve stream URL: {e}") from e
 

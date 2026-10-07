@@ -131,7 +131,9 @@ class McpTubeService:
         if not text_only:
             try:
                 frames = self._scene_extractor.extract_scene_frames(
-                    video.video_id, max_frames=self._max_frames
+                    video.video_id,
+                    max_frames=self._max_frames,
+                    source_url=video.source_url,
                 )
                 frame_stats["ffmpeg_extracted"] = len(frames)
                 logger.info("Scene frames: extracted %d frames", len(frames))
@@ -242,7 +244,9 @@ class McpTubeService:
         if not text_only:
             try:
                 frames = self._scene_extractor.extract_scene_frames(
-                    video.video_id, max_frames=self._max_frames
+                    video.video_id,
+                    max_frames=self._max_frames,
+                    source_url=video.source_url,
                 )
                 frame_stats["ffmpeg_extracted"] = len(frames)
                 logger.info("Scene frames: extracted %d frames", len(frames))
@@ -419,7 +423,10 @@ class McpTubeService:
         """
         if not self._repo.exists(video_id):
             raise VideoNotFoundError(f"Video not found: {video_id}")
-        return self._frame_extractor.extract_frame(video_id, timestamp)
+        video = self._repo.get(video_id)
+        return self._frame_extractor.extract_frame(
+            video_id, timestamp, source_url=video.source_url
+        )
 
     def get_frame_by_query(self, video_id: str, query: str) -> dict:
         """Search transcript and extract a frame at the best matching moment.
@@ -453,7 +460,9 @@ class McpTubeService:
         if best_seg is None:
             raise VideoNotFoundError(f"No transcript match for query: {query}")
 
-        frame_path = self._frame_extractor.extract_frame(video_id, best_seg.start)
+        frame_path = self._frame_extractor.extract_frame(
+            video_id, best_seg.start, source_url=video.source_url
+        )
         return {
             "path": frame_path,
             "start": best_seg.start,

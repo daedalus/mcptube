@@ -10,8 +10,6 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen, Request
 
-import yt_dlp
-
 from mcptube.llm import get_llm
 
 from mcptube.models import Chapter, TranscriptSegment, Video
@@ -61,6 +59,18 @@ class ExtractionError(Exception):
     """Raised when video extraction fails."""
 
 
+# Canonical YouTube video ID: exactly 11 base64url chars. Single source of truth,
+# reused by the URL patterns and the ?v= fallback so the two can't drift apart.
+_VIDEO_ID_PATTERN = r"[A-Za-z0-9_-]{11}"
+VIDEO_ID_RE = re.compile(_VIDEO_ID_PATTERN)
+
+# A video id can arrive straight from a tool call (get_frame, get_frame_by_query),
+# where it becomes a filesystem path and a stream URL. Validate it as a safe token
+# (no path separators, no traversal) at those sinks. Deliberately platform-agnostic
+# — not the strict 11-char YouTube form — so non-YouTube ids stay supportable.
+SAFE_VIDEO_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
 class YouTubeExtractor:
     """Extracts metadata and transcripts from YouTube videos via yt-dlp.
 
@@ -69,10 +79,12 @@ class YouTubeExtractor:
     """
 
     _URL_PATTERNS = [
-        re.compile(r"(?:youtube\.com/watch\?.*v=)([\w-]{11})"),
-        re.compile(r"(?:youtu\.be/)([\w-]{11})"),
-        re.compile(r"(?:youtube\.com/embed/)([\w-]{11})"),
-        re.compile(r"(?:youtube\.com/v/)([\w-]{11})"),
+        re.compile(rf"(?:youtube\.com/watch\?.*v=)({_VIDEO_ID_PATTERN})"),
+        re.compile(rf"(?:youtu\.be/)({_VIDEO_ID_PATTERN})"),
+        re.compile(rf"(?:youtube\.com/embed/)({_VIDEO_ID_PATTERN})"),
+        re.compile(rf"(?:youtube\.com/v/)({_VIDEO_ID_PATTERN})"),
+        re.compile(rf"(?:youtube\.com/shorts/)({_VIDEO_ID_PATTERN})"),
+        re.compile(rf"(?:youtube\.com/live/)({_VIDEO_ID_PATTERN})"),
     ]
 
     _LANG_PREFERENCE = ("en", "en-orig", "en-US", "en-GB")
@@ -123,6 +135,8 @@ class YouTubeExtractor:
 
         return Video(
             video_id=video_id,
+            platform="youtube",
+            source_url=info.get("webpage_url") or url,
             title=info.get("title", ""),
             description=info.get("description", ""),
             channel=info.get("channel", "") or info.get("uploader", ""),
@@ -142,7 +156,8 @@ class YouTubeExtractor:
     def parse_video_id(cls, url: str) -> str:
         """Extract the 11-character video ID from a YouTube URL.
 
-        Supports youtube.com/watch, youtu.be, /embed/, and /v/ formats.
+        Supports youtube.com/watch, youtu.be, /embed/, /v/, /shorts/, and
+        /live/ formats.
 
         Raises:
             ExtractionError: If the URL cannot be parsed.
@@ -162,49 +177,22 @@ class YouTubeExtractor:
 
     def _fetch_info(self, url: str) -> dict:
         """Fetch video info dict from yt-dlp without downloading media."""
-        from mcptube.config import settings
+        from mcptube.ingestion.yt_session import build_ydl_opts, extract_info_with_retry
 
-        ydl_opts: dict = {
-            "quiet": True,
-            "no_warnings": True,
-            "writesubtitles": True,
-            "writeautomaticsub": True,
-            "subtitleslangs": list(self._LANG_PREFERENCE),
-            "subtitlesformat": "json3",
-            "skip_download": True,
-        }
-        cookie_file = _get_cookie_file()
-        if cookie_file:
-            ydl_opts["cookiefile"] = str(cookie_file)
-            logger.info("Using cookies from: %s", cookie_file)
-        if settings.js_runtimes:
-            ydl_opts["js_runtimes"] = {settings.js_runtimes: {}}
-            logger.info("Using JS runtime: %s", settings.js_runtimes)
-        if settings.no_proxy:
-            ydl_opts["proxy"] = ""
-            logger.info("Proxy disabled for yt-dlp")
-        elif settings.proxy:
-            ydl_opts["proxy"] = settings.proxy
-            logger.info("Using proxy: %s", settings.proxy)
-        if settings.cookies_from_browser:
-            ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
-            logger.info("Using cookies from browser: %s", settings.cookies_from_browser)
-            print(f"🍪 Using fresh cookies from {settings.cookies_from_browser}")
-        if settings.format:
-            ydl_opts["format"] = settings.format
-            logger.info("Using video format: %s", settings.format)
+        ydl_opts = build_ydl_opts(
+            {
+                "writesubtitles": True,
+                "writeautomaticsub": True,
+                "subtitleslangs": list(self._LANG_PREFERENCE),
+                "subtitlesformat": "json3",
+            }
+        )
 
-        logger.debug("yt-dlp options: %s", ydl_opts)
         try:
-            logger.debug("Starting yt-dlp extraction for: %s", url)
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                logger.debug(
-                    "yt-dlp extracted info: %s", info.get("id") if info else None
-                )
-                if info is None:
-                    raise ExtractionError(f"yt-dlp returned no info for: {url}")
-                return info
+            info = extract_info_with_retry(url, ydl_opts)
+            if info is None:
+                raise ExtractionError(f"yt-dlp returned no info for: {url}")
+            return info
         except Exception as e:
             if "Sign in to confirm" in str(e) or "bot" in str(e).lower():
                 raise ExtractionError(
@@ -444,3 +432,18 @@ class YouTubeExtractor:
             for ch in (info.get("chapters") or [])
             if ch.get("title")
         ]
+
+
+def extract_transcript_from_info(info: dict) -> list[TranscriptSegment]:
+    """Extract transcript from a yt-dlp info dict without instantiating YouTubeExtractor.
+
+    Useful for multi-platform extractors that get an info dict from yt-dlp
+    and need transcript extraction without the full YouTubeExtractor machinery.
+
+    Args:
+        info: yt-dlp info dict.
+
+    Returns:
+        List of TranscriptSegment, empty if no transcript found.
+    """
+    return YouTubeExtractor()._extract_transcript(info)

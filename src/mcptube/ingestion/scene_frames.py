@@ -1,4 +1,4 @@
-"""Scene-change frame extraction from YouTube videos via ffmpeg."""
+"""Scene-change frame extraction from videos via ffmpeg."""
 
 import logging
 import subprocess
@@ -7,7 +7,7 @@ from pathlib import Path
 import yt_dlp
 
 from mcptube.config import settings
-from mcptube.ingestion.youtube import _get_cookie_file
+from mcptube.ingestion.yt_session import build_ydl_opts, extract_info_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +17,14 @@ class SceneFrameError(Exception):
 
 
 class SceneFrameExtractor:
-    """Extracts key frames from YouTube videos using ffmpeg scene-change detection.
+    """Extracts key frames from videos using ffmpeg scene-change detection.
 
     Uses ffmpeg's scene filter to detect visual transitions and extract
     only frames where significant visual change occurs. This is ideal
     for lectures, slides, demos, and presentations where the screen
     content changes at meaningful moments.
 
-    The scene threshold (0.0–1.0) controls sensitivity:
+    The scene threshold (0.0-1.0) controls sensitivity:
     - Lower = more frames (catches subtle changes)
     - Higher = fewer frames (only major transitions)
     - Default 0.4 is a good balance for most content
@@ -38,7 +38,7 @@ class SceneFrameExtractor:
         """Initialize scene frame extractor.
 
         Args:
-            threshold: Scene-change sensitivity (0.0–1.0). Default 0.4.
+            threshold: Scene-change sensitivity (0.0-1.0). Default 0.4.
         """
         self._threshold = threshold or self._DEFAULT_THRESHOLD
 
@@ -46,12 +46,15 @@ class SceneFrameExtractor:
         self,
         video_id: str,
         max_frames: int | None = None,
+        source_url: str = "",
     ) -> list[dict]:
-        """Extract key frames at scene-change points from a YouTube video.
+        """Extract key frames at scene-change points from a video.
 
         Args:
-            video_id: YouTube video ID.
+            video_id: Namespaced video ID (used for the output directory).
             max_frames: Maximum frames to extract. Defaults to _MAX_FRAMES.
+            source_url: Canonical URL of the video. If empty, builds
+                        a YouTube URL from video_id.
 
         Returns:
             List of dicts with keys: "path" (Path), "timestamp" (float), "index" (int)
@@ -74,7 +77,7 @@ class SceneFrameExtractor:
             return cached[:max_frames]
 
         # Resolve direct stream URL
-        stream_url = self._resolve_stream_url(video_id)
+        stream_url = self._resolve_stream_url(source_url or video_id)
 
         # Extract frames via ffmpeg scene filter
         frames = self._extract_with_ffmpeg(stream_url, output_dir, max_frames)
@@ -82,48 +85,31 @@ class SceneFrameExtractor:
         logger.info("Extracted %d scene-change frames for %s", len(frames), video_id)
         return frames
 
-    def _resolve_stream_url(self, video_id: str) -> str:
-        """Resolve a direct stream URL from a YouTube video ID."""
-        url = f"https://www.youtube.com/watch?v={video_id}"
-        ydl_opts = {
-            "quiet": True,
-            "no_warnings": True,
-            "format": "best[ext=mp4]/best",
-            "skip_download": True,
-        }
-        cookie_file = _get_cookie_file()
-        if cookie_file:
-            ydl_opts["cookiefile"] = str(cookie_file)
-            logger.debug("Using cookies for scene frames: %s", cookie_file)
+    def _resolve_stream_url(self, source: str) -> str:
+        """Resolve a direct stream URL from a video URL or ID.
+
+        Args:
+            source: A full video URL, or a YouTube video ID (legacy).
+        """
+        if source.startswith("http"):
+            url = source
         else:
-            logger.warning("NO COOKIE FILE FOUND for scene frames!")
-        if settings.js_runtimes:
-            ydl_opts["js_runtimes"] = {settings.js_runtimes: {}}
-            logger.debug("Using JS runtime for scene frames: %s", settings.js_runtimes)
-        else:
-            logger.warning("NO JS_RUNTIMES for scene frames!")
-        if settings.no_proxy:
-            ydl_opts["proxy"] = ""
-            logger.debug("Proxy disabled for scene frames")
-        elif settings.proxy:
-            ydl_opts["proxy"] = settings.proxy
-            logger.debug("Using proxy for scene frames: %s", settings.proxy)
-        if settings.cookies_from_browser:
-            ydl_opts["cookies_from_browser"] = (settings.cookies_from_browser, {})
-            logger.debug(
-                "Using cookies from browser for scene frames: %s",
-                settings.cookies_from_browser,
-            )
-        logger.info("scene_frames ydl_opts: %s", ydl_opts)
+            url = f"https://www.youtube.com/watch?v={source}"
+
+        ydl_opts = build_ydl_opts(
+            {
+                "format": "best[ext=mp4]/best",
+            }
+        )
+
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if info is None:
-                    raise SceneFrameError(f"yt-dlp returned no info for: {video_id}")
-                stream_url = info.get("url")
-                if not stream_url:
-                    raise SceneFrameError(f"No stream URL resolved for: {video_id}")
-                return stream_url
+            info = extract_info_with_retry(url, ydl_opts)
+            if info is None:
+                raise SceneFrameError(f"yt-dlp returned no info for: {source}")
+            stream_url = info.get("url")
+            if not stream_url:
+                raise SceneFrameError(f"No stream URL resolved for: {source}")
+            return stream_url
         except yt_dlp.utils.DownloadError as e:
             raise SceneFrameError(f"Failed to resolve stream URL: {e}") from e
 
@@ -133,10 +119,6 @@ class SceneFrameExtractor:
         """Use ffmpeg scene filter to extract key frames."""
         output_pattern = str(output_dir / "scene_%04d.jpg")
 
-        # ffmpeg command:
-        # -vf "select='gt(scene,T)',scale=W:-1" — detect scene changes, scale down
-        # -vsync vfr — variable frame rate (only output selected frames)
-        # -frame_pts 1 — write PTS as frame number (for timestamp recovery)
         cmd = [
             "ffmpeg",
             "-i",

@@ -27,9 +27,11 @@ class Chapter(BaseModel):
 
 
 class Video(BaseModel):
-    """Core domain entity representing an indexed YouTube video."""
+    """Core domain entity representing an indexed video."""
 
-    video_id: str  # YouTube video ID (e.g. "dQw4w9WgXcQ")
+    video_id: str  # namespaced ID: "{platform}_{native_id}" or YouTube ID
+    platform: str = "youtube"  # source platform (youtube, tiktok, instagram, etc.)
+    source_url: str = ""  # canonical URL from the platform
     title: str
     description: str = ""
     channel: str = ""
@@ -53,5 +55,7 @@ class Video(BaseModel):
     @computed_field
     @property
     def url(self) -> str:
-        """Full YouTube URL derived from video_id."""
+        """Canonical URL for this video."""
+        if self.source_url:
+            return self.source_url
         return f"https://www.youtube.com/watch?v={self.video_id}"
