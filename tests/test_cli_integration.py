@@ -54,11 +54,14 @@ def mock_service(sample_video):
                 wiki_dir = pathlib.Path(tempfile.mkdtemp()) / "wiki"
                 wiki_repo = FileWikiRepository(wiki_dir=wiki_dir, db_path=":memory:")
                 wiki_engine = WikiEngine(repo=wiki_repo, llm=LLMClient())
+                mock_scene = MagicMock()
+                mock_scene.extract_scene_frames.return_value = []
                 svc = McpTubeService(
                     repository=repo,
                     extractor=extractor,
                     llm_client=LLMClient(),
                     wiki_engine=wiki_engine,
+                    scene_extractor=mock_scene,
                 )
                 with patch("mcptube.cli._get_service", return_value=svc):
                     yield svc

@@ -48,6 +48,12 @@ class TestInit:
         ext = SceneFrameExtractor(threshold=0.6)
         assert ext._threshold == 0.6
 
+    def test_threshold_ladder_default(self):
+        assert SceneFrameExtractor()._threshold_ladder() == [0.4, 0.05, 0.005]
+
+    def test_threshold_ladder_skips_fallbacks_not_lower(self):
+        assert SceneFrameExtractor(threshold=0.01)._threshold_ladder() == [0.01, 0.005]
+
 
 class TestParseShowinfoTimestamps:
     def test_parse_single_timestamp(self):
@@ -233,6 +239,126 @@ class TestExtractWithFfmpeg:
             "https://stream.example.com/v.mp4", output_dir, 50
         )
         assert len(frames) == 1
+
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_ladder_retries_lower_threshold_when_no_frames(
+        self, mock_run, extractor, output_dir
+    ):
+        """Zero frames at the configured threshold triggers fallbacks."""
+        calls = {"n": 0}
+
+        def fake_run(cmd, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 3:
+                (output_dir / "scene_0001.jpg").write_bytes(b"\xff\xd8" + b"\x00" * 50)
+                return MagicMock(
+                    returncode=0,
+                    stderr="[Parsed_showinfo_2 @ 0x1] n:0 pts:0 pts_time:7.500 pos:0\n",
+                )
+            return MagicMock(returncode=0, stderr="no matches")
+
+        mock_run.side_effect = fake_run
+
+        frames = extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
+        assert len(frames) == 1
+        assert frames[0]["timestamp"] == 7.5
+        assert mock_run.call_count == 3
+        # Ladder thresholds 0.4 → 0.05 → 0.005 appear in the -vf filters
+        filters = [c[0][0][c[0][0].index("-vf") + 1] for c in mock_run.call_args_list]
+        assert "gt(scene,0.4)" in filters[0]
+        assert "gt(scene,0.05)" in filters[1]
+        assert "gt(scene,0.005)" in filters[2]
+
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_ladder_exhausted_returns_empty(self, mock_run, extractor, output_dir):
+        mock_run.return_value = MagicMock(returncode=0, stderr="no matches")
+        frames = extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
+        assert frames == []
+        assert mock_run.call_count == 3
+
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_ffmpeg_cmd_uses_explicit_pix_fmt_and_user_agent(
+        self, mock_run, extractor, output_dir
+    ):
+        (output_dir / "scene_0001.jpg").write_bytes(b"\xff\xd8" + b"\x00" * 50)
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
+        cmd = mock_run.call_args[0][0]
+        assert "format=yuvj420p" in cmd[cmd.index("-vf") + 1]
+        assert "-user_agent" in cmd
+        assert "-fps_mode" in cmd
+
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_ladder_stops_on_hard_failure(self, mock_run, extractor, output_dir):
+        mock_run.return_value = MagicMock(returncode=1, stderr="Error: broken")
+        with pytest.raises(SceneFrameError, match="ffmpeg failed"):
+            extractor._extract_with_ffmpeg(
+                "https://stream.example.com/v.mp4", output_dir, 50
+            )
+        assert mock_run.call_count == 1
+
+    @patch("mcptube.ingestion.scene_frames.time.sleep")
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_403_on_fresh_url_is_retried(
+        self, mock_run, mock_sleep, extractor, output_dir
+    ):
+        calls = {"n": 0}
+
+        def fake_run(cmd, **kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                return MagicMock(returncode=8, stderr="HTTP error 403 Forbidden")
+            (output_dir / "scene_0001.jpg").write_bytes(b"\xff\xd8" + b"\x00" * 50)
+            return MagicMock(
+                returncode=0,
+                stderr="[Parsed_showinfo_2 @ 0x1] n:0 pts:0 pts_time:1.000 pos:0\n",
+            )
+
+        mock_run.side_effect = fake_run
+        frames = extractor._extract_with_ffmpeg(
+            "https://stream.example.com/v.mp4", output_dir, 50
+        )
+        assert len(frames) == 1
+        assert mock_run.call_count == 3
+        assert mock_sleep.call_count == 2
+
+    @patch("mcptube.ingestion.scene_frames.time.sleep")
+    @patch("mcptube.ingestion.scene_frames.subprocess.run")
+    def test_non_403_failure_is_not_retried(
+        self, mock_run, mock_sleep, extractor, output_dir
+    ):
+        mock_run.return_value = MagicMock(
+            returncode=8, stderr="HTTP error 404 Not Found"
+        )
+        with pytest.raises(SceneFrameError, match="ffmpeg failed"):
+            extractor._extract_with_ffmpeg(
+                "https://stream.example.com/v.mp4", output_dir, 50
+            )
+        assert mock_run.call_count == 1
+        mock_sleep.assert_not_called()
+
+    @patch("mcptube.ingestion.scene_frames.build_ydl_opts")
+    @patch("mcptube.ingestion.scene_frames.yt_dlp.YoutubeDL")
+    def test_resolve_opts_prefer_mweb_android_clients(
+        self, mock_ydl_class, mock_build_opts, extractor
+    ):
+        mock_ydl = MagicMock()
+        mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+        mock_ydl.__exit__ = MagicMock(return_value=False)
+        mock_ydl.extract_info.return_value = {"url": "https://s/v.mp4"}
+        mock_ydl_class.return_value = mock_ydl
+        mock_build_opts.side_effect = lambda base: base
+
+        extractor._resolve_stream_url("https://youtube.com/watch?v=abc")
+        base = mock_build_opts.call_args[0][0]
+        assert base["extractor_args"]["youtube"]["player_client"] == ["mweb", "android"]
+        assert "bestvideo[ext=mp4]" in base["format"]
 
 
 class TestExtractSceneFrames:

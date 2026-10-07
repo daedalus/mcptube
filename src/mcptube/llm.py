@@ -62,6 +62,11 @@ class LLMClient:
         return self._model
 
     @property
+    def fallback_models(self) -> list[str]:
+        """Ordered list of fallback models to try if the primary fails."""
+        return self._fallback_models
+
+    @property
     def available(self) -> bool:
         """Check if any LLM provider is configured."""
         return any(os.environ.get(key) for key in self._KEY_TO_MODEL)

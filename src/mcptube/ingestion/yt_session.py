@@ -36,6 +36,10 @@ def build_ydl_opts(base_opts: dict | None = None) -> dict:
     opts.setdefault("no_warnings", True)
     opts.setdefault("skip_download", True)
 
+    # Remote JS component (YouTube n-challenge solver) fetched from GitHub.
+    # yt-dlp no longer bundles it; without it, format extraction is degraded.
+    opts.setdefault("remote_components", ["ejs:github"])
+
     # Cookies
     cookie_file = _resolve_cookie_file()
     if cookie_file:

@@ -66,7 +66,10 @@ class McpTubeService:
             FrameCacheDB() if vision_describer is None else vision_describer._cache
         )
         self._vision_describer = vision_describer or VisionDescriber(
-            self._llm, frame_cache, model=self._llm.model
+            self._llm,
+            frame_cache,
+            model=self._llm.model,
+            fallback_models=self._llm.fallback_models,
         )
 
         if self._llm.available:

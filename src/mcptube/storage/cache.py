@@ -169,6 +169,7 @@ class SQLiteCache:
             )
         except sqlite3.IntegrityError:
             return
+        self._conn.commit()
 
         self.bloom.add(cache_key)
 

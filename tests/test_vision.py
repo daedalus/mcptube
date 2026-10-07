@@ -80,6 +80,60 @@ class TestInit:
         d = VisionDescriber(mock_llm)
         assert "gemini" in d._model
 
+    @patch.dict(
+        "os.environ",
+        {
+            "OPENROUTER_API_KEY": "sk-or-test",
+            "ANTHROPIC_API_KEY": "",
+            "OPENAI_API_KEY": "",
+            "GOOGLE_API_KEY": "",
+        },
+        clear=False,
+    )
+    def test_detects_openrouter(self, mock_llm):
+        d = VisionDescriber(mock_llm)
+        assert d._model == "openrouter/openrouter/free"
+
+    @patch.dict(
+        "os.environ",
+        {
+            "OPENROUTER_API_KEY": "",
+            "ANTHROPIC_API_KEY": "",
+            "OPENAI_API_KEY": "",
+            "GOOGLE_API_KEY": "",
+        },
+        clear=False,
+    )
+    def test_no_keys_returns_none(self, mock_llm):
+        d = VisionDescriber(mock_llm)
+        assert d._model is None
+
+
+class TestVisionCapability:
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "openrouter/openrouter/free",
+            "openrouter/google/gemma-4-31b-it:free",
+            "openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "openrouter/thinkingmachines/inkling:free",
+            "gpt-4o",
+        ],
+    )
+    def test_vision_capable(self, model):
+        assert VisionDescriber._is_vision_capable(model)
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+            "openrouter/poolside/laguna-xs-2.1:free",
+            "openrouter/qwen/qwen3-8b-instruct",
+        ],
+    )
+    def test_text_only_models_not_vision_capable(self, model):
+        assert not VisionDescriber._is_vision_capable(model)
+
 
 class TestDescribeFrames:
     def test_empty_frames_returns_empty(self, describer):
@@ -151,6 +205,96 @@ class TestDescribeSingleFrame:
         with pytest.raises(LLMError, match="Vision model failed"):
             describer._describe_single_frame(fake_frames[0]["path"])
 
+    @patch("mcptube.ingestion.vision.time.sleep")
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_retries_on_rate_limit(
+        self, mock_completion, mock_sleep, describer, fake_frames
+    ):
+        mock_completion.side_effect = [
+            Exception('RateLimitError: code 429 "upstream rate-limited"'),
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="Recovered description"))]
+            ),
+        ]
+        desc = describer._describe_single_frame(fake_frames[0]["path"])
+        assert desc == "Recovered description"
+        assert mock_completion.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("mcptube.ingestion.vision.time.sleep")
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_does_not_retry_on_other_errors(
+        self, mock_completion, mock_sleep, describer, fake_frames
+    ):
+        mock_completion.side_effect = Exception("Connection refused")
+        with pytest.raises(LLMError, match="Vision model failed"):
+            describer._describe_single_frame(fake_frames[0]["path"])
+        assert mock_completion.call_count == 1
+        mock_sleep.assert_not_called()
+
+    @patch("mcptube.ingestion.vision.time.sleep")
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_falls_back_to_second_model_when_primary_rate_limited(
+        self, mock_completion, mock_sleep, mock_llm, fake_frames
+    ):
+        """Primary 429s out; vision-capable fallback must be tried next."""
+        fb_describer = VisionDescriber(
+            mock_llm,
+            model="openrouter/google/gemma-4-31b-it:free",
+            fallback_models=["openrouter/openrouter/free"],
+        )
+        exc = Exception('RateLimitError: code 429 "upstream rate-limited"')
+        mock_completion.side_effect = [
+            exc,
+            exc,
+            exc,
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content="From fallback model"))]
+            ),
+        ]
+        desc = fb_describer._describe_single_frame(fake_frames[0]["path"])
+        assert desc == "From fallback model"
+        assert mock_completion.call_count == 4
+        assert mock_sleep.call_count == 2
+        fallback_call = mock_completion.call_args_list[-1]
+        assert fallback_call.kwargs["model"] == "openrouter/openrouter/free"
+
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_non_vision_fallbacks_are_dropped(
+        self, mock_completion, mock_llm, fake_frames
+    ):
+        """Fallback models without vision support must not be called."""
+        fb_describer = VisionDescriber(
+            mock_llm,
+            model="openrouter/google/gemma-4-31b-it:free",
+            fallback_models=[
+                "openrouter/qwen/qwen3-8b-instruct",
+                "openrouter/openrouter/free",
+            ],
+        )
+        assert fb_describer._candidates == [
+            "openrouter/google/gemma-4-31b-it:free",
+            "openrouter/openrouter/free",
+        ]
+        mock_completion.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="OK"))]
+        )
+        fb_describer._describe_single_frame(fake_frames[0]["path"])
+        called_models = [c.kwargs["model"] for c in mock_completion.call_args_list]
+        assert called_models == ["openrouter/google/gemma-4-31b-it:free"]
+
+    def test_skips_when_no_vision_capable_model(self, mock_llm, fake_frames):
+        """All candidates non-vision → placeholders with a warning, no calls."""
+        no_vision = VisionDescriber(
+            mock_llm,
+            model="openrouter/meta-llama/llama-3.1-8b-instruct",
+            fallback_models=["openrouter/qwen/qwen3-8b-instruct"],
+        )
+        assert no_vision._candidates == []
+        results = no_vision.describe_frames(fake_frames)
+        assert len(results) == 3
+        assert all(r.description == "(vision model not available)" for r in results)
+
 
 class TestDescribeBatch:
     @patch("mcptube.ingestion.vision.litellm.completion")
@@ -188,20 +332,27 @@ class TestDescribeBatch:
         assert len(results) == 8
         assert results[0].description == "Desc 0"
 
+    @patch("mcptube.ingestion.vision.time.sleep")
     @patch("mcptube.ingestion.vision.litellm.completion")
     def test_batch_fewer_descriptions_than_frames(
-        self, mock_completion, describer, many_fake_frames
+        self, mock_completion, mock_sleep, describer, many_fake_frames
     ):
+        """Truncated batch arrays must not silently drop trailing frames."""
         import json
 
         descriptions = ["Only three", "descriptions", "here"]
-        mock_completion.return_value = MagicMock(
-            choices=[MagicMock(message=MagicMock(content=json.dumps(descriptions)))]
-        )
+        batch_json = json.dumps(descriptions)
+        # Missing frames (indexes 3..7) are described individually.
+        mock_completion.side_effect = [
+            MagicMock(choices=[MagicMock(message=MagicMock(content=batch_json))])
+        ] + [
+            MagicMock(choices=[MagicMock(message=MagicMock(content=f"Desc {i}"))])
+            for i in range(3, 8)
+        ]
         results = describer._describe_batch(many_fake_frames)
         assert len(results) == 8
         assert results[0].description == "Only three"
-        assert results[3].description == "(description unavailable)"
+        assert all(results[i].description == f"Desc {i}" for i in range(3, 8))
 
     @patch("mcptube.ingestion.vision.litellm.completion")
     def test_batch_fallback_handles_error_gracefully(
@@ -211,6 +362,53 @@ class TestDescribeBatch:
         results = describer._describe_batch(many_fake_frames)
         assert len(results) == 8
         assert all(isinstance(r, FrameDescription) for r in results)
+
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_batch_fallback_actually_describes_individually(
+        self, mock_completion, describer, many_fake_frames
+    ):
+        """A failed batch call must fall back to per-frame descriptions."""
+        import json
+
+        batch_error = Exception("Batch failed")
+        individual = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Individual description"))]
+        )
+        mock_completion.side_effect = [batch_error] + [individual] * 8
+
+        results = describer._describe_batch(many_fake_frames)
+
+        assert len(results) == 8
+        assert all(r.description == "Individual description" for r in results)
+        assert mock_completion.call_count == 9
+
+    @patch("mcptube.ingestion.vision.litellm.completion")
+    def test_batch_falls_back_to_second_model(
+        self, mock_completion, mock_llm, many_fake_frames
+    ):
+        """Batch primary model failing must retry the call with a fallback."""
+        import json
+
+        fb_describer = VisionDescriber(
+            mock_llm,
+            model="openrouter/google/gemma-4-31b-it:free",
+            fallback_models=["openrouter/openrouter/free"],
+        )
+        descriptions = [f"Batch {i}" for i in range(8)]
+        mock_completion.side_effect = [
+            Exception("Batch failed"),
+            MagicMock(
+                choices=[MagicMock(message=MagicMock(content=json.dumps(descriptions)))]
+            ),
+        ]
+        results = fb_describer._describe_batch(many_fake_frames)
+        assert len(results) == 8
+        assert results[0].description == "Batch 0"
+        models = [c.kwargs["model"] for c in mock_completion.call_args_list]
+        assert models == [
+            "openrouter/google/gemma-4-31b-it:free",
+            "openrouter/openrouter/free",
+        ]
 
 
 class TestRouting:

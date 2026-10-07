@@ -2,6 +2,7 @@
 
 import logging
 import subprocess
+import time
 from pathlib import Path
 
 import yt_dlp
@@ -10,6 +11,20 @@ from mcptube.config import settings
 from mcptube.ingestion.yt_session import build_ydl_opts, extract_info_with_retry
 
 logger = logging.getLogger(__name__)
+
+# See frames.py: resolution opts for direct stream URLs. The mweb/android
+# player clients are required so ffmpeg gets fetchable (non-SABR) URLs.
+_STREAM_RESOLVE_OPTS = {
+    "format": "bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[ext=mp4]/best",
+    "extractor_args": {"youtube": {"player_client": ["mweb", "android"]}},
+}
+
+_FFMPEG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+# Freshly resolved googlevideo URLs reliably return 403 for the first
+# few seconds (PO-token propagation on the CDN), then succeed.
+_RETRIES_403 = 3
+_RETRY_403_DELAY_S = 5
 
 
 class SceneFrameError(Exception):
@@ -33,6 +48,11 @@ class SceneFrameExtractor:
     _DEFAULT_THRESHOLD = 0.4
     _MAX_FRAMES = 50  # safety cap
     _SCALE_WIDTH = 1280
+    # Fallback thresholds tried (in order) when the configured threshold
+    # matches nothing. Lecture/slide videos often have scene scores far
+    # below the 0.4 default (measured max ~0.013), which would otherwise
+    # yield zero frames.
+    _FALLBACK_THRESHOLDS = (0.05, 0.005)
 
     def __init__(self, threshold: float | None = None) -> None:
         """Initialize scene frame extractor.
@@ -96,11 +116,7 @@ class SceneFrameExtractor:
         else:
             url = f"https://www.youtube.com/watch?v={source}"
 
-        ydl_opts = build_ydl_opts(
-            {
-                "format": "best[ext=mp4]/best",
-            }
-        )
+        ydl_opts = build_ydl_opts(_STREAM_RESOLVE_OPTS)
 
         try:
             info = extract_info_with_retry(url, ydl_opts)
@@ -116,46 +132,46 @@ class SceneFrameExtractor:
     def _extract_with_ffmpeg(
         self, stream_url: str, output_dir: Path, max_frames: int
     ) -> list[dict]:
-        """Use ffmpeg scene filter to extract key frames."""
+        """Use ffmpeg scene filter to extract key frames.
+
+        Tries the configured threshold first, then progressively lower
+        fallback thresholds while zero frames are produced.
+        """
         output_pattern = str(output_dir / "scene_%04d.jpg")
 
-        cmd = [
-            "ffmpeg",
-            "-i",
-            stream_url,
-            "-vf",
-            f"select='gt(scene,{self._threshold})',scale={self._SCALE_WIDTH}:-1,showinfo",
-            "-vsync",
-            "vfr",
-            "-frames:v",
-            str(max_frames),
-            "-q:v",
-            "2",
-            "-y",
-            output_pattern,
-        ]
+        result: subprocess.CompletedProcess[str] | None = None
+        ladder = self._threshold_ladder()
+        for attempt, threshold in enumerate(ladder):
+            if attempt > 0:
+                logger.info(
+                    "No scene changes at threshold %.3f, retrying with %.3f",
+                    ladder[attempt - 1],
+                    threshold,
+                )
 
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
+            cmd = self._build_scene_cmd(
+                threshold, stream_url, output_pattern, max_frames
             )
+            try:
+                result = self._run_ffmpeg(cmd, timeout=300)
+            except subprocess.TimeoutExpired:
+                raise SceneFrameError("ffmpeg timed out during scene detection")
+            except FileNotFoundError:
+                raise SceneFrameError(
+                    "ffmpeg not found. Install it: https://ffmpeg.org/download.html"
+                )
 
+            if any(output_dir.glob("scene_*.jpg")):
+                break
             if result.returncode != 0:
-                # ffmpeg may return non-zero but still produce frames
-                if not any(output_dir.glob("scene_*.jpg")):
-                    raise SceneFrameError(
-                        f"ffmpeg failed (code {result.returncode}): {result.stderr[:300]}"
-                    )
+                # ffmpeg may return non-zero but still produce frames —
+                # checked above — so this is a real failure.
+                raise SceneFrameError(
+                    f"ffmpeg failed (code {result.returncode}): {result.stderr[:300]}"
+                )
+            # rc == 0 but no frames: try the next (lower) threshold.
 
-        except subprocess.TimeoutExpired:
-            raise SceneFrameError("ffmpeg timed out during scene detection")
-        except FileNotFoundError:
-            raise SceneFrameError(
-                "ffmpeg not found. Install it: https://ffmpeg.org/download.html"
-            )
+        assert result is not None
 
         # Parse timestamps from ffmpeg showinfo output
         timestamps = self._parse_showinfo_timestamps(result.stderr)
@@ -172,10 +188,76 @@ class SceneFrameExtractor:
                 }
             )
 
+        if not frames:
+            logger.warning(
+                "No scene changes found even at threshold %.3f",
+                ladder[-1],
+            )
+
         # Save timestamp metadata for cache
         self._save_metadata(output_dir, frames)
 
         return frames
+
+    def _build_scene_cmd(
+        self, threshold: float, stream_url: str, output_pattern: str, max_frames: int
+    ) -> list[str]:
+        """Build the ffmpeg scene-detection command.
+
+        format=yuvj420p after scale: without an explicit pix_fmt the
+        mjpeg encoder fails to open when no frames pass the select
+        filter (ffmpeg exits 234 instead of 0).
+        """
+        return [
+            "ffmpeg",
+            "-user_agent",
+            _FFMPEG_USER_AGENT,
+            "-i",
+            stream_url,
+            "-vf",
+            (
+                f"select='gt(scene,{threshold})',"
+                f"scale={self._SCALE_WIDTH}:-2,format=yuvj420p,showinfo"
+            ),
+            "-fps_mode",
+            "vfr",
+            "-frames:v",
+            str(max_frames),
+            "-q:v",
+            "2",
+            "-y",
+            output_pattern,
+        ]
+
+    @staticmethod
+    def _run_ffmpeg(cmd: list[str], timeout: int) -> "subprocess.CompletedProcess[str]":
+        """Run an ffmpeg command, retrying transient 403s on fresh URLs."""
+        result: subprocess.CompletedProcess[str] | None = None
+        for attempt in range(1, _RETRIES_403 + 1):
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=timeout
+            )
+            if result.returncode == 0 or "403" not in (result.stderr or ""):
+                return result
+            if attempt < _RETRIES_403:
+                logger.warning(
+                    "ffmpeg got 403 on freshly resolved URL "
+                    "(attempt %d/%d), retrying in %ds",
+                    attempt,
+                    _RETRIES_403,
+                    _RETRY_403_DELAY_S,
+                )
+                time.sleep(_RETRY_403_DELAY_S)
+        assert result is not None
+        return result
+
+    def _threshold_ladder(self) -> list[float]:
+        """Configured threshold followed by lower fallbacks, in order."""
+        ladder = [self._threshold]
+        for fallback in self._FALLBACK_THRESHOLDS:
+            if fallback < ladder[-1]:
+                ladder.append(fallback)
+        return ladder
 
     @staticmethod
     def _parse_showinfo_timestamps(stderr: str) -> list[float]:

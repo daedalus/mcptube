@@ -21,6 +21,24 @@ SAMPLE_WIKI_EXTRACTION = """{
 SAMPLE_CLASSIFY = '["AI", "Tutorial", "Machine Learning"]'
 
 
+@pytest.fixture(autouse=True)
+def _isolated_data_dir(tmp_path):
+    """Point all caches (subtitles, prompts, frames) at a per-test tmp dir.
+
+    Keeps tests isolated from the real ~/.mcptube data dir and from each
+    other, which matters because cache writes are now durable.
+    """
+    from mcptube.config import settings
+
+    data_dir = tmp_path / "data"
+    with (
+        patch.object(settings, "data_dir", data_dir),
+        patch.object(settings, "frames_dir", data_dir / "frames"),
+    ):
+        settings.ensure_dirs()
+        yield
+
+
 @pytest.fixture
 def sample_segments():
     """List of TranscriptSegment objects for testing."""
@@ -146,10 +164,14 @@ def service(sqlite_repo, mock_extractor, mock_frames, mock_llm, tmp_path):
     wiki_repo = FileWikiRepository(wiki_dir=tmp_path / "wiki", db_path=":memory:")
     wiki_engine = WikiEngine(repo=wiki_repo, llm=mock_llm)
 
+    mock_scene = MagicMock()
+    mock_scene.extract_scene_frames.return_value = []
+
     return McpTubeService(
         repository=sqlite_repo,
         extractor=mock_extractor,
         frame_extractor=mock_frames,
         llm_client=mock_llm,
         wiki_engine=wiki_engine,
+        scene_extractor=mock_scene,
     )

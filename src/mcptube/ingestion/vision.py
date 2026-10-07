@@ -1,8 +1,8 @@
 """Vision model integration — describe video frames using multimodal LLM."""
 
 import base64
-import json
 import logging
+import time
 from pathlib import Path
 
 import litellm
@@ -12,6 +12,21 @@ from mcptube.storage.cache import FrameCacheDB
 from mcptube.wiki.models import FrameDescription
 
 logger = logging.getLogger(__name__)
+
+# Free-tier providers (e.g. Google AI Studio via OpenRouter) frequently
+# return transient 429s on vision calls; retry with a short delay.
+_RETRIES_429 = 3
+_RETRY_429_DELAY_S = 5
+
+# Keep batch vision calls small: free models truncate long JSON outputs,
+# which silently drops descriptions for trailing frames.
+_BATCH_CHUNK = 10
+
+
+def _is_rate_limit_error(e: Exception) -> bool:
+    """True if the exception looks like a transient rate limit."""
+    msg = str(e).lower()
+    return "429" in msg or "rate limit" in msg or "ratelimit" in msg
 
 
 class VisionDescriber:
@@ -26,6 +41,7 @@ class VisionDescriber:
         "ANTHROPIC_API_KEY": "anthropic/claude-sonnet-4-20250514",
         "OPENAI_API_KEY": "gpt-4o",
         "GOOGLE_API_KEY": "gemini/gemini-2.0-flash",
+        "OPENROUTER_API_KEY": "openrouter/openrouter/free",
     }
 
     _FRAME_PROMPT = """Describe this video frame concisely in 1-3 sentences.
@@ -53,10 +69,18 @@ Return ONLY the JSON array. No markdown, no explanation."""
         llm: LLMClient,
         cache: FrameCacheDB | None = None,
         model: str | None = None,
+        fallback_models: list[str] | None = None,
     ) -> None:
         self._llm = llm
         self._model = model or self._detect_vision_model()
         self._cache = cache
+        candidates = [self._model, *(fallback_models or [])]
+        # Keep only vision-capable candidates, preserving order, deduped.
+        self._candidates = [
+            m
+            for m in dict.fromkeys(m for m in candidates if m)
+            if self._is_vision_capable(m)
+        ]
 
     def describe_frames(self, frames: list[dict]) -> list[FrameDescription]:
         """Describe a list of scene-change frames using vision model.
@@ -77,7 +101,7 @@ Return ONLY the JSON array. No markdown, no explanation."""
             return []
 
         # Skip vision if no vision-capable model is available
-        if not self._model or not self._is_vision_capable(self._model):
+        if not self._candidates:
             logger.warning(
                 "No vision-capable model available (model: %s), skipping frame descriptions",
                 self._model,
@@ -149,95 +173,165 @@ Return ONLY the JSON array. No markdown, no explanation."""
         b64 = base64.b64encode(image_path.read_bytes()).decode()
         mime = "image/jpeg"
 
-        try:
-            response = litellm.completion(
-                model=self._model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": self._FRAME_PROMPT},
+        last_error: Exception | None = None
+        for idx, model in enumerate(self._candidates):
+            if idx > 0:
+                logger.warning(
+                    "Vision model %s failed, trying fallback %s",
+                    self._candidates[idx - 1],
+                    model,
+                )
+            for attempt in range(1, _RETRIES_429 + 1):
+                try:
+                    response = litellm.completion(
+                        model=model,
+                        messages=[
                             {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{mime};base64,{b64}",
-                                },
-                            },
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": self._FRAME_PROMPT},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {
+                                            "url": f"data:{mime};base64,{b64}",
+                                        },
+                                    },
+                                ],
+                            }
                         ],
-                    }
-                ],
-                temperature=0.2,
-                max_tokens=256,
-            )
-            description = response.choices[0].message.content.strip()
+                        temperature=0.2,
+                        max_tokens=256,
+                    )
+                    description = response.choices[0].message.content or ""
+                    description = description.strip()
 
-            # Store in cache
-            if self._cache:
-                self._cache.put(image_path, description)
+                    # Store in cache
+                    if self._cache:
+                        self._cache.put(image_path, description)
 
-            return description
-        except Exception as e:
-            raise LLMError(f"Vision model failed: {e}") from e
+                    return description
+                except Exception as e:
+                    last_error = e
+                    if attempt < _RETRIES_429 and _is_rate_limit_error(e):
+                        logger.warning(
+                            "Vision call rate-limited (attempt %d/%d), retrying in %ds",
+                            attempt,
+                            _RETRIES_429,
+                            _RETRY_429_DELAY_S,
+                        )
+                        time.sleep(_RETRY_429_DELAY_S)
+                        continue
+                    break
+        raise LLMError(f"Vision model failed: {last_error}") from last_error
 
-    def _describe_batch(self, frames: list[dict]) -> list[FrameDescription]:
-        """Describe multiple frames in a single vision call. Checks cache first."""
-        import json
-
-        # Check cache and separate cached vs uncached frames
-        cached_results = {}
-        uncached_frames = []
+    def _partition_cached(self, frames: list[dict]) -> tuple[dict, list[dict]]:
+        """Split frames into already-described (by path) vs uncached."""
+        cached_results: dict = {}
+        uncached_frames: list[dict] = []
         for frame in frames:
-            if self._cache:
-                cached_desc = self._cache.get(frame["path"])
-                if cached_desc is not None:
-                    cached_results[frame["path"]] = cached_desc
-                else:
-                    uncached_frames.append(frame)
+            cached_desc = self._cache.get(frame["path"]) if self._cache else None
+            if cached_desc is not None:
+                cached_results[frame["path"]] = cached_desc
             else:
                 uncached_frames.append(frame)
+        return cached_results, uncached_frames
 
-        # If all frames cached, return cached results
-        if uncached_frames:
-            # Build content array with uncached images only
-            content = [{"type": "text", "text": self._BATCH_PROMPT}]
-            for frame in uncached_frames:
-                b64 = base64.b64encode(frame["path"].read_bytes()).decode()
-                content.append(
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{b64}",
-                        },
-                    }
+    def _batch_call(self, content: list[dict]) -> list:
+        """Run one batched vision completion across candidate models.
+
+        Returns the parsed description array, or raises LLMError if every
+        candidate model fails.
+        """
+        import json
+
+        last_error: Exception | None = None
+        for idx, model in enumerate(self._candidates):
+            if idx > 0:
+                logger.warning(
+                    "Vision model %s failed, trying fallback %s",
+                    self._candidates[idx - 1],
+                    model,
                 )
-
             try:
                 response = litellm.completion(
-                    model=self._model,
+                    model=model,
                     messages=[{"role": "user", "content": content}],
                     temperature=0.2,
                     max_tokens=2048,
                 )
-                raw = response.choices[0].message.content.strip()
-
-                # Parse JSON array
-                text = raw
-                if text.startswith("```"):
-                    text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-                descs = json.loads(text)
-
-                # Store uncached results in cache
-                for i, frame in enumerate(uncached_frames):
-                    desc = descs[i] if i < len(descs) else "(description unavailable)"
-                    cached_results[frame["path"]] = desc
-                    if self._cache:
-                        self._cache.put(frame["path"], desc)
-
+                raw = response.choices[0].message.content or ""
+                raw = raw.strip()
+                if raw.startswith("```"):
+                    raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                return json.loads(raw)
             except Exception as e:
-                logger.warning("Batch vision failed, falling back to individual: %s", e)
-                # Fall back to individual for uncached
-                for frame in uncached_frames:
-                    cached_results[frame["path"]] = None
+                last_error = e
+                logger.warning("Vision batch call failed on %s: %s", model, e)
+        raise LLMError(f"Vision batch failed: {last_error}") from last_error
+
+    def _request_batch(
+        self, uncached_frames: list[dict], cached_results: dict
+    ) -> list[dict]:
+        """Single vision call over uncached frames; store into cached_results.
+
+        Returns the frames that still lack a real description (e.g. a
+        truncated JSON array); those should be described individually.
+        """
+        content = [{"type": "text", "text": self._BATCH_PROMPT}]
+        for frame in uncached_frames:
+            b64 = base64.b64encode(frame["path"].read_bytes()).decode()
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{b64}",
+                    },
+                }
+            )
+
+        descs = self._batch_call(content)
+
+        # Store real descriptions in cache; placeholders are NOT cached so
+        # future runs retry them, and are returned for individual fallback.
+        missing: list[dict] = []
+        for i, frame in enumerate(uncached_frames):
+            desc = descs[i] if i < len(descs) else "(description unavailable)"
+            cached_results[frame["path"]] = desc
+            if desc == "(description unavailable)":
+                missing.append(frame)
+            elif self._cache:
+                self._cache.put(frame["path"], desc)
+        return missing
+
+    def _describe_batch(self, frames: list[dict]) -> list[FrameDescription]:
+        """Describe frames in batched vision calls, chunked to avoid truncation."""
+        cached_results, uncached_frames = self._partition_cached(frames)
+
+        if uncached_frames:
+            missing: list[dict] = []
+            chunks = [
+                uncached_frames[i : i + _BATCH_CHUNK]
+                for i in range(0, len(uncached_frames), _BATCH_CHUNK)
+            ]
+            for chunk in chunks:
+                try:
+                    missing.extend(self._request_batch(chunk, cached_results))
+                except LLMError as e:
+                    logger.warning(
+                        "Batch vision failed, falling back to individual: %s", e
+                    )
+                    # Fall back to individual for this chunk
+                    individual = self._describe_individually(chunk)
+                    for frame, desc in zip(chunk, individual):
+                        cached_results[frame["path"]] = desc.description
+            if missing:
+                logger.info(
+                    "Describing %d frame(s) with truncated batch output individually",
+                    len(missing),
+                )
+                individual = self._describe_individually(missing)
+                for frame, desc in zip(missing, individual):
+                    cached_results[frame["path"]] = desc.description
 
         # Build final descriptions in original order
         descriptions = []
@@ -278,5 +372,11 @@ Return ONLY the JSON array. No markdown, no explanation."""
             "gemini",
             "llava",
             "vision",
+            # OpenRouter free multimodal models (verified via /api/v1/models)
+            "openrouter/free",
+            "gemma-4",
+            "nemotron-3-nano-omni",
+            "inkling",
+            "dots-3",
         ]
         return any(kw in model.lower() for kw in vision_keywords)

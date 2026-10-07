@@ -21,6 +21,17 @@ class TestBuildYdlOpts:
         assert opts["quiet"] is True
         assert opts["no_warnings"] is True
         assert opts["skip_download"] is True
+        assert opts["remote_components"] == ["ejs:github"]
+
+    def test_remote_components_respects_base_override(self, monkeypatch):
+        monkeypatch.setattr(settings, "cookies_file", None)
+        monkeypatch.setattr(settings, "js_runtimes", None)
+        monkeypatch.setattr(settings, "no_proxy", False)
+        monkeypatch.setattr(settings, "proxy", None)
+        monkeypatch.setattr(settings, "cookies_from_browser", None)
+        monkeypatch.setattr(settings, "format", None)
+        opts = yt_session.build_ydl_opts({"remote_components": ["ejs:npm"]})
+        assert opts["remote_components"] == ["ejs:npm"]
 
     def test_injects_cookiefile(self, monkeypatch, tmp_path):
         ck = tmp_path / "c.txt"

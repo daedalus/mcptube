@@ -2,6 +2,7 @@
 
 import logging
 import subprocess
+import time
 from pathlib import Path
 
 import yt_dlp
@@ -10,6 +11,28 @@ from mcptube.config import settings
 from mcptube.ingestion.yt_session import build_ydl_opts, extract_info_with_retry
 
 logger = logging.getLogger(__name__)
+
+# Resolution opts for direct stream URLs.
+#
+# `bestvideo[ext=mp4]` (video-only) is enough for frame extraction and
+# resolves to a single downloadable URL. The mweb/android player clients
+# are required: default clients hand out SABR/mweb-blocked URLs that
+# ffmpeg cannot fetch (HTTP 403). These extractor args only apply to
+# YouTube URLs and are ignored for other sites.
+_STREAM_RESOLVE_OPTS = {
+    "format": "bestvideo[ext=mp4][height<=720]/bestvideo[ext=mp4]/best[ext=mp4]/best",
+    "extractor_args": {"youtube": {"player_client": ["mweb", "android"]}},
+}
+
+# ffmpeg's default UA (Lavf/...) and the resolved http_headers both work
+# against the mweb CDN URL; anything beyond a browser UA is unnecessary.
+_FFMPEG_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+# Freshly resolved googlevideo URLs reliably return 403 for the first
+# few seconds (PO-token propagation on the CDN), then succeed. Retry
+# instead of failing the whole extraction.
+_RETRIES_403 = 3
+_RETRY_403_DELAY_S = 5
 
 
 class FrameExtractionError(Exception):
@@ -67,11 +90,7 @@ class FrameExtractor:
         else:
             url = f"https://www.youtube.com/watch?v={source}"
 
-        ydl_opts = build_ydl_opts(
-            {
-                "format": "best[ext=mp4]/best",
-            }
-        )
+        ydl_opts = build_ydl_opts(_STREAM_RESOLVE_OPTS)
 
         try:
             info = extract_info_with_retry(url, ydl_opts)
@@ -90,8 +109,12 @@ class FrameExtractor:
         """Use ffmpeg to seek and extract a single JPEG frame."""
         output.parent.mkdir(parents=True, exist_ok=True)
 
+        # Pass only a User-Agent: forwarding the full resolved header set
+        # (Origin/Range/X-Goog-*) makes googlevideo CDN return 403.
         cmd = [
             "ffmpeg",
+            "-user_agent",
+            _FFMPEG_USER_AGENT,
             "-ss",
             str(timestamp),
             "-i",
@@ -105,12 +128,26 @@ class FrameExtractor:
         ]
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
+            result = None
+            for attempt in range(1, _RETRIES_403 + 1):
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0 or "403" not in (result.stderr or ""):
+                    break
+                if attempt < _RETRIES_403:
+                    logger.warning(
+                        "ffmpeg got 403 on freshly resolved URL "
+                        "(attempt %d/%d), retrying in %ds",
+                        attempt,
+                        _RETRIES_403,
+                        _RETRY_403_DELAY_S,
+                    )
+                    time.sleep(_RETRY_403_DELAY_S)
+            assert result is not None
             if result.returncode != 0 or not output.exists():
                 raise FrameExtractionError(
                     f"ffmpeg failed (code {result.returncode}): {result.stderr[:200]}"
